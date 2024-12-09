@@ -12,7 +12,6 @@
   "license": "ISC",
   "description": "A tool to analyze git repository features using Ollama",
   "dependencies": {
-    "chalk": "^5.3.0",
     "ora": "^7.0.1",
     "simple-git": "^3.22.0"
   },

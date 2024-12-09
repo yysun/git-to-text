@@ -5,22 +5,34 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import readline from 'readline';
 import ora from 'ora';
-import chalk from 'chalk';
-import { analyzeGitDiff, consolidateFeaturesList } from './services/analysis.js';
+import { analyzeGitDiff, consolidateFeaturesList } from './services/ollama.js';
+import { detectProjectType } from './services/project-analyzer.js';
+import { filterSourceFiles } from './services/git-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ANSI escape codes
+const RESET = '\x1b[0m';
+const BOLD = '\x1b[1m';
+const DIM = '\x1b[2m';
+const RED = '\x1b[31m';
+const GREEN = '\x1b[32m';
+const YELLOW = '\x1b[33m';
+const WHITE = '\x1b[37m';
+const GRAY = '\x1b[90m';
+
 // Global features variable to track accumulated features
 let globalFeatures = '';
+let projectType = 'unknown';
 
 const HELP_MESSAGE = `
-${chalk.bold('Available Commands:')}
-  ${chalk.cyan('/help')}              - Show this help message
-  ${chalk.cyan('/repo')} ${chalk.gray('[path]')}       - Switch repositories. Optionally, will prompt for input
-  ${chalk.cyan('/features')}          - Show summarized features
-  ${chalk.cyan('/read')} ${chalk.gray('[n]')}          - Process the next n commits
-  ${chalk.cyan('/exit')}              - Exit the program
+${BOLD}Available Commands:${RESET}
+  ${WHITE}/help${RESET}              - Show this help message
+  ${WHITE}/repo${RESET} [path]       - Switch repositories
+  ${WHITE}/features${RESET}          - Show summarized features
+  ${WHITE}/read${RESET} [n]          - Process the next n commits
+  ${WHITE}/exit${RESET}              - Exit the program
 `;
 
 async function promptForRepoPath() {
@@ -30,7 +42,7 @@ async function promptForRepoPath() {
   });
 
   return new Promise((resolve) => {
-    rl.question(chalk.yellow('Please enter the path to your git repository: '), (answer) => {
+    rl.question('Enter repository path: ', (answer) => {
       rl.close();
       resolve(answer.trim());
     });
@@ -56,8 +68,8 @@ function createProgressBar(total) {
     const percentage = Math.round((current / total) * 100);
     const filled = Math.round((width * current) / total);
     const empty = width - filled;
-    const bar = chalk.green('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
-    return `${bar} ${chalk.cyan(percentage)}% (${chalk.yellow(current)}/${chalk.yellow(total)})`;
+    const bar = `${GREEN}${'█'.repeat(filled)}${RESET}${GRAY}${'░'.repeat(empty)}${RESET}`;
+    return `${bar} ${percentage}% (${current}/${total})`;
   };
 }
 
@@ -67,7 +79,8 @@ async function getCommitDiffs(repoPath) {
   
   try {
     const log = await git.log();
-    const commits = log.all;
+    // Sort commits by date ascending (oldest first)
+    const commits = log.all.sort((a, b) => new Date(a.date) - new Date(b.date));
     const total = commits.length - 1;
     const diffs = [];
     const getProgress = createProgressBar(total);
@@ -80,18 +93,24 @@ async function getCommitDiffs(repoPath) {
       
       spinner.text = `Reading commits... ${getProgress(i + 1)}\n`;
       
-      const diff = await git.diff([nextCommit.hash, currentCommit.hash]);
-      diffs.push({
-        commitHash: currentCommit.hash,
-        message: currentCommit.message,
-        diff
-      });
+      const diff = await git.diff([currentCommit.hash, nextCommit.hash]);
+      // Filter diff to only include source files based on project type
+      const sourceDiff = filterSourceFiles(diff, projectType);
+      
+      if (sourceDiff) {
+        diffs.push({
+          commitHash: currentCommit.hash,
+          message: currentCommit.message,
+          date: currentCommit.date,
+          diff: sourceDiff
+        });
+      }
     }
 
-    spinner.succeed(chalk.green('Repository analysis complete'));
+    spinner.succeed(`${GREEN}Repository analysis complete${RESET}`);
     return diffs;
   } catch (error) {
-    spinner.fail(chalk.red('Failed to analyze repository'));
+    spinner.fail(`${RED}Failed to analyze repository${RESET}`);
     throw error;
   }
 }
@@ -103,21 +122,36 @@ async function getRepoStats(git) {
     status: await git.status()
   };
   
-  console.log(chalk.bold('\n📊 Repository Statistics'));
+  console.log(`${BOLD}\n📊 Repository Statistics${RESET}`);
   console.log('━'.repeat(50));
-  console.log(`${chalk.blue('Current Branch:')}    ${chalk.green(stats.branches.current)}`);
-  console.log(`${chalk.blue('Total Commits:')}     ${chalk.yellow(stats.commits)}`);
-  console.log(`${chalk.blue('Total Branches:')}    ${chalk.yellow(stats.branches.all.length)}`);
-  console.log(`${chalk.blue('Modified Files:')}    ${chalk.yellow(stats.status.modified.length)}`);
-  console.log(`${chalk.blue('Staged Files:')}      ${chalk.yellow(stats.status.staged.length)}`);
+  console.log(`${WHITE}Branch:${RESET}           ${GREEN}${stats.branches.current}${RESET}`);
+  console.log(`${WHITE}Commits:${RESET}          ${YELLOW}${stats.commits}${RESET}`);
+  console.log(`${WHITE}Total Branches:${RESET}   ${YELLOW}${stats.branches.all.length}${RESET}`);
+  console.log(`${WHITE}Modified Files:${RESET}   ${YELLOW}${stats.status.modified.length}${RESET}`);
+  console.log(`${WHITE}Staged Files:${RESET}     ${YELLOW}${stats.status.staged.length}${RESET}`);
+  console.log(`${WHITE}Project Type:${RESET}     ${GREEN}${projectType}${RESET}`);
   console.log('━'.repeat(50));
   
   return stats;
 }
 
+async function detectRepoType(repoPath) {
+  const git = simpleGit(repoPath);
+  const files = await git.raw(['ls-files']);
+  const fileList = files.split('\n').filter(Boolean);
+  return detectProjectType(fileList);
+}
+
 async function loadRepository(path) {
   const git = simpleGit(path);
   const validPath = await validateRepoPath(path);
+  
+  // Detect project type
+  projectType = await detectRepoType(validPath);
+  console.log(`${BOLD}\n🔍 Project Analysis${RESET}`);
+  console.log('━'.repeat(50));
+  console.log(`${WHITE}Detected Type:${RESET}    ${GREEN}${projectType}${RESET}`);
+  
   const diffs = await getCommitDiffs(validPath);
   const stats = await getRepoStats(git);
   
@@ -128,7 +162,8 @@ async function loadRepository(path) {
     repoPath: validPath,
     diffs,
     stats,
-    features: null
+    features: null,
+    lastProcessedIndex: -1 // Track the last processed commit index
   };
 }
 
@@ -136,44 +171,49 @@ async function printHelp() {
   console.log(HELP_MESSAGE);
 }
 
-async function processCommits(git, count) {
+async function processCommits(git, count, state) {
   const spinner = ora('Fetching commit history...').start();
   
   try {
-    const log = await git.log();
-    const commits = log.all;
-    const total = Math.min(count, commits.length - 1);
-    const diffs = [];
-    const getProgress = createProgressBar(total);
+    const { diffs } = state;
+    const startIndex = state.lastProcessedIndex + 1;
+    const endIndex = Math.min(startIndex + count, diffs.length);
+    const total = endIndex - startIndex;
 
-    spinner.text = 'Reading repository commits...';
-    spinner.succeed();
-    
-    for (let i = 0; i < total; i++) {
-      const currentCommit = commits[i];
-      const nextCommit = commits[i + 1];
-      
-      console.log(chalk.bold(`\n📝 Processing Commit ${chalk.yellow(i + 1)}/${chalk.yellow(total)}`));
-      console.log('━'.repeat(50));
-      console.log(`${chalk.blue('Hash:')}    ${chalk.yellow(currentCommit.hash)}`);
-      console.log(`${chalk.blue('Message:')} ${currentCommit.message}`);
-      
-      const diff = await git.diff([nextCommit.hash, currentCommit.hash]);
-      console.log(chalk.bold('\n📄 Diff:'));
-      console.log('━'.repeat(50));
-      console.log(diff);
-      
-      diffs.push({
-        commitHash: currentCommit.hash,
-        message: currentCommit.message,
-        diff
-      });
+    if (startIndex >= diffs.length) {
+      spinner.info(`${YELLOW}All commits have been processed. Use /repo to analyze a different repository.${RESET}`);
+      return [];
     }
 
-    console.log(chalk.green('\n✅ Commit processing complete'));
-    return diffs;
+    spinner.text = 'Reading commits...';
+    spinner.succeed();
+    
+    const processingDiffs = [];
+    const getProgress = createProgressBar(total);
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const diff = diffs[i];
+      console.log(`${BOLD}\n📝 Processing Commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
+      console.log(`${WHITE}Date:${RESET} ${new Date(diff.date).toLocaleString()}`);
+      console.log(diff.message);
+      
+      if (diff.diff) {
+        processingDiffs.push(diff);
+      } else {
+        console.log(`${YELLOW}No source file changes in this commit${RESET}`);
+      }
+      
+      // Update progress
+      spinner.text = `Processing commits... ${getProgress(i - startIndex + 1)}\n`;
+    }
+
+    // Update the last processed index
+    state.lastProcessedIndex = endIndex - 1;
+
+    console.log(`${GREEN}\n✓ Commit processing complete${RESET}`);
+    return processingDiffs;
   } catch (error) {
-    spinner.fail(chalk.red('Failed to process commits'));
+    spinner.fail(`${RED}Failed to process commits${RESET}`);
     throw error;
   }
 }
@@ -196,7 +236,7 @@ async function handleCommand(cmd, state) {
         try {
           return await loadRepository(newPath);
         } catch (error) {
-          console.error(chalk.red(`❌ Error: ${error.message}`));
+          console.error(`${RED}❌ Error: ${error.message}${RESET}`);
           return state;
         }
       }
@@ -204,58 +244,57 @@ async function handleCommand(cmd, state) {
 
     case '/features':
       if (globalFeatures) {
-        console.log(chalk.bold('\n🎯 Current Features:'));
+        console.log(`${BOLD}\n🎯 Features Analysis${RESET}`);
         console.log('━'.repeat(50));
-        console.log(globalFeatures);
+        console.log(DIM + globalFeatures + RESET);
       } else {
-        console.log(chalk.yellow('⚠️  No features analyzed yet. Use /read to analyze commits.'));
+        console.log(`${YELLOW}No features analyzed yet. Use /read to analyze commits.${RESET}`);
       }
       return state;
 
     case '/read':
       if (!state.repoPath) {
-        console.log(chalk.yellow('⚠️  No repository selected. Use /repo to select a repository.'));
+        console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
       }
       
       const count = parseInt(args[0]);
       if (isNaN(count) || count <= 0) {
-        console.log(chalk.yellow('⚠️  Please provide a valid positive number of commits to process.'));
+        console.log(`${YELLOW}Please provide a valid positive number of commits to process.${RESET}`);
         return state;
       }
 
       try {
         const git = simpleGit(state.repoPath);
-        const diffs = await processCommits(git, count);
-        console.log(chalk.bold('\n🔍 Analyzing commits with Ollama...'));
+        const diffs = await processCommits(git, count, state);
+        console.log(`${BOLD}\n🤖 Running Analysis${RESET}`);
         
-        // Analyze each commit's features
-        const newFeatures = await Promise.all(
-          diffs.map(async (diff, index) => {
-            console.log(chalk.blue(`\n📊 Analyzing commit ${chalk.yellow(index + 1)}/${chalk.yellow(diffs.length)}:`));
-            return analyzeGitDiff(diff.diff);
-          })
-        );
+        // Process features sequentially
+        const newFeatures = [];
+        for (let i = 0; i < diffs.length; i++) {
+          console.log(`\nAnalyzing commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
+          const features = await analyzeGitDiff(diffs[i].message + '\n' + diffs[i].diff);
+          console.log(DIM + features + RESET);
+          newFeatures.push(features);
+        }
 
         // Combine new features with global features
         const allFeatures = globalFeatures ? [globalFeatures, ...newFeatures] : newFeatures;
         
-        console.log(chalk.bold('\n🔄 Consolidating all features...'));
+        console.log(`${BOLD}\nConsolidating features...${RESET}`);
         globalFeatures = await consolidateFeaturesList(allFeatures);
+        console.log(DIM + globalFeatures + RESET);
         
-        console.log(chalk.bold('\n✨ Updated Features:'));
-        console.log('━'.repeat(50));
-        console.log(globalFeatures);
       } catch (error) {
-        console.error(chalk.red(`❌ Error processing commits: ${error.message}`));
+        console.error(`${RED}❌ Error processing commits: ${error.message}${RESET}`);
       }
       return state;
 
     case '/exit':
-      console.log(chalk.green('\n👋 Goodbye!'));
+      console.log(`${GREEN}\n👋 Goodbye!${RESET}`);
       process.exit(0);
     default:
-      console.log(chalk.yellow('⚠️  Unknown command. Type /help for available commands.'));
+      console.log(`${YELLOW}Unknown command. Type /help for available commands.${RESET}`);
       return state;
   }
 }
@@ -268,7 +307,7 @@ async function commandLoop(state) {
 
   while (true) {
     const cmd = await new Promise(resolve => {
-      rl.question(chalk.green('\n➜ '), answer => resolve(answer.trim()));
+      rl.question('> ', answer => resolve(answer.trim()));
     });
     
     if (cmd) {
@@ -280,7 +319,12 @@ async function commandLoop(state) {
 async function main() {
   const spinner = ora();
   try {
-    let state = { repoPath: null, diffs: null, stats: null };
+    let state = { 
+      repoPath: null, 
+      diffs: null, 
+      stats: null, 
+      lastProcessedIndex: -1 // Initialize the commit pointer
+    };
     let initialPath = process.argv[2];
 
     if (!initialPath) {
@@ -291,19 +335,17 @@ async function main() {
       state = await loadRepository(initialPath);
     }
 
-    console.log(chalk.bold.cyan('\n🔍 Git-to-Text Interactive Mode'));
-    console.log('━'.repeat(50));
     await printHelp();
     await commandLoop(state);
 
   } catch (error) {
-    spinner.fail(chalk.red(`❌ Error: ${error.message}`));
+    spinner.fail(`${RED}❌ Error: ${error.message}${RESET}`);
     process.exit(1);
   }
 }
 
 process.on('SIGINT', () => {
-  console.log(chalk.yellow('\n\n👋 Gracefully shutting down...'));
+  console.log(`${GREEN}\nGracefully shutting down...${RESET}`);
   process.exit(0);
 });
 
