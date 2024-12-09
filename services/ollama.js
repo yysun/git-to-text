@@ -107,11 +107,15 @@ class OllamaClient {
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `Analyze this git diff and list the main features or changes implemented. 
+      const prompt = `Analyze this git diff and list the changes made: 
 
       ${processedDiff}
 
-      Only return the key points as a bullet list. Do not include explaination or code snippets or offer further help.`;
+      - Describe the features implemented into a bullet list.
+      - Use sublist for parameters details if any, but no code details.
+      - Only return a bullet list. 
+      - Do not offer explanations or further help.`;
+
 
       return (await this.query(prompt)).trim();
     } catch (error) {
@@ -128,11 +132,16 @@ class OllamaClient {
         return 'No features to consolidate';
       }
       
-      const prompt = `Consolidate these features into a clear, non-redundant features list by screens or modules with sublist of implementation details if needed:
+      const prompt = `Consolidate these features into a clear, non-redundant features list: 
       
       ${validFeatures.join('\n')}
 
-      Return ONLY the list; Do not offer further help or suggestions.
+      - Maintain the order of features as they appear in the list. 
+      - Later features to same objects should override earlier changes.
+      - Use bullet points for each feature, keep implementation and parameters details.          
+      - Use sublist for details if needed.
+      - Return ONLY the list. 
+      - Do not offer further help or suggestions.
 
       `;
       return (await this.query(prompt)).trim();

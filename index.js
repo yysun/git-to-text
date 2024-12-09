@@ -194,8 +194,8 @@ async function processCommits(git, count, state) {
     for (let i = startIndex; i < endIndex; i++) {
       const diff = diffs[i];
       console.log(`${BOLD}\n📝 Processing Commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
-      console.log(`${WHITE}Date:${RESET} ${new Date(diff.date).toLocaleString()}`);
-      console.log(diff.message);
+      console.log(`${DIM}Date: ${new Date(diff.date).toLocaleString()}`);
+      console.log(diff.message + RESET);
       
       if (diff.diff) {
         processingDiffs.push(diff);
@@ -274,7 +274,7 @@ async function handleCommand(cmd, state) {
         for (let i = 0; i < diffs.length; i++) {
           console.log(`\nAnalyzing commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
           const features = await analyzeGitDiff(diffs[i].message + '\n' + diffs[i].diff);
-          console.log(DIM + features + RESET);
+          // Removed the console.log here since ollama.js now handles the streaming output
           newFeatures.push(features);
         }
 
@@ -283,7 +283,7 @@ async function handleCommand(cmd, state) {
         
         console.log(`${BOLD}\nConsolidating features...${RESET}`);
         globalFeatures = await consolidateFeaturesList(allFeatures);
-        console.log(DIM + globalFeatures + RESET);
+        // Removed the console.log here since ollama.js now handles the streaming output
         
       } catch (error) {
         console.error(`${RED}❌ Error processing commits: ${error.message}${RESET}`);
