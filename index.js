@@ -32,6 +32,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/repo${RESET} [path]       - Switch repositories
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/read${RESET} [n]          - Process the next n commits
+  ${WHITE}/run${RESET} [n]           - Create and analyze diffs for every n commits
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -218,6 +219,69 @@ async function processCommits(git, count, state) {
   }
 }
 
+async function processCommitGroups(git, groupSize, state) {
+  const spinner = ora('Fetching commit history...').start();
+  
+  try {
+    const { diffs } = state;
+    const total = diffs.length;
+    const totalGroups = Math.ceil(total / groupSize);
+    
+    if (total === 0) {
+      spinner.info(`${YELLOW}No commits to process.${RESET}`);
+      return [];
+    }
+
+    spinner.text = 'Processing commit groups...';
+    spinner.succeed();
+    
+    const groups = [];
+    const getProgress = createProgressBar(totalGroups);
+    
+    for (let i = 0; i < total; i += groupSize) {
+      const groupEnd = Math.min(i + groupSize, total);
+      
+      // Combine diffs in the group
+      let combinedDiff = '';
+      let combinedMessage = '';
+      
+      for (let j = i; j < groupEnd; j++) {
+        const diff = diffs[j];
+        if (diff.diff) {
+          combinedDiff += diff.diff + '\n';
+          combinedMessage += diff.message + '\n';
+        }
+      }
+      
+      if (combinedDiff) {
+        groups.push({
+          message: combinedMessage,
+          diff: combinedDiff
+        });
+      }
+      
+      // Update progress and show on same line
+      process.stdout.clearLine(0);
+      process.stdout.cursorTo(0);
+      const progress = getProgress(Math.floor(i/groupSize) + 1);
+      
+      // If this is the last group, show completion message instead
+      if (i + groupSize >= total) {
+        process.stdout.write(`${GREEN}✓ Group processing complete (${totalGroups} groups)${RESET}`);
+      } else {
+        process.stdout.write(`${BOLD}📦 Processing Group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET} ${progress}`);
+      }
+    }
+
+    // Move to next line after completion
+    console.log();
+    return groups;
+  } catch (error) {
+    spinner.fail(`${RED}Failed to process commit groups${RESET}`);
+    throw error;
+  }
+}
+
 async function handleCommand(cmd, state) {
   const [command, ...args] = cmd.toLowerCase().split(' ');
   
@@ -248,7 +312,7 @@ async function handleCommand(cmd, state) {
         console.log('━'.repeat(50));
         console.log(DIM + globalFeatures + RESET);
       } else {
-        console.log(`${YELLOW}No features analyzed yet. Use /read to analyze commits.${RESET}`);
+        console.log(`${YELLOW}No features analyzed yet. Use /read or /run to analyze commits.${RESET}`);
       }
       return state;
 
@@ -274,7 +338,6 @@ async function handleCommand(cmd, state) {
         for (let i = 0; i < diffs.length; i++) {
           console.log(`\nAnalyzing commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
           const features = await analyzeGitDiff(diffs[i].message + '\n' + diffs[i].diff);
-          // Removed the console.log here since ollama.js now handles the streaming output
           newFeatures.push(features);
         }
 
@@ -283,10 +346,45 @@ async function handleCommand(cmd, state) {
         
         console.log(`${BOLD}\nConsolidating features...${RESET}`);
         globalFeatures = await consolidateFeaturesList(allFeatures);
-        // Removed the console.log here since ollama.js now handles the streaming output
         
       } catch (error) {
         console.error(`${RED}❌ Error processing commits: ${error.message}${RESET}`);
+      }
+      return state;
+
+    case '/run':
+      if (!state.repoPath) {
+        console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
+        return state;
+      }
+      
+      const groupSize = parseInt(args[0]);
+      if (isNaN(groupSize) || groupSize <= 0) {
+        console.log(`${YELLOW}Please provide a valid positive number for group size.${RESET}`);
+        return state;
+      }
+
+      try {
+        const git = simpleGit(state.repoPath);
+        const groups = await processCommitGroups(git, groupSize, state);
+        console.log(`${BOLD}\n🤖 Running Analysis${RESET}`);
+        
+        // Process features for each group
+        const newFeatures = [];
+        for (let i = 0; i < groups.length; i++) {
+          console.log(`\nAnalyzing group ${WHITE}${i + 1}${RESET}/${WHITE}${groups.length}${RESET}`);
+          const features = await analyzeGitDiff(groups[i].message + '\n' + groups[i].diff);
+          newFeatures.push(features);
+        }
+
+        // Combine new features with global features
+        const allFeatures = globalFeatures ? [globalFeatures, ...newFeatures] : newFeatures;
+        
+        console.log(`${BOLD}\nConsolidating features...${RESET}`);
+        globalFeatures = await consolidateFeaturesList(allFeatures);
+        
+      } catch (error) {
+        console.error(`${RED}❌ Error processing commit groups: ${error.message}${RESET}`);
       }
       return state;
 

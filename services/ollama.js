@@ -2,9 +2,10 @@
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
   model: 'llama3.2:3b',
-  temperature: 0.3,
+  temperature: 0.1,
   retryAttempts: 3,
   retryDelay: 1000,
+  maxTokens: 1024,  // Added maxTokens config
 };
 
 // ANSI escape codes
@@ -27,7 +28,8 @@ class OllamaClient {
             model: this.config.model,
             prompt: this._sanitizePrompt(prompt),
             stream: true,
-            temperature: this.config.temperature
+            temperature: this.config.temperature,
+            max_tokens: this.config.maxTokens  // Added maxTokens to request
           })
         });
 
@@ -47,6 +49,7 @@ class OllamaClient {
   async _processStream(response) {
     const reader = response.body.getReader();
     let fullText = '';
+    let buffer = '';
     process.stdout.write('\n');
 
     try {
@@ -55,18 +58,46 @@ class OllamaClient {
         if (done) break;
 
         const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n').filter(Boolean);
+        buffer += chunk;
 
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.response) {
-              process.stdout.write(DIM + parsed.response + RESET);
-              fullText += parsed.response;
+        // Process complete JSON objects from buffer
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (line.trim()) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.response) {
+                process.stdout.write(DIM + parsed.response + RESET);
+                fullText += parsed.response;
+              }
+            } catch (e) {
+              // Log problematic chunk for debugging
+              console.error('Error parsing JSON:', e.message);
+              console.error('Problematic chunk:', line);
+              
+              // Try to recover by clearing buffer if it gets too large
+              if (buffer.length > 10000) {
+                console.error('Buffer overflow, clearing buffer');
+                buffer = '';
+              }
             }
-          } catch (e) {
-            console.error('Error parsing stream chunk:', e);
           }
+        }
+      }
+
+      // Process any remaining data in buffer
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer);
+          if (parsed.response) {
+            process.stdout.write(DIM + parsed.response + RESET);
+            fullText += parsed.response;
+          }
+        } catch (e) {
+          console.error('Error parsing final buffer:', e.message);
         }
       }
     } finally {
@@ -107,14 +138,16 @@ class OllamaClient {
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `Analyze this git diff and list the changes made: 
+      const prompt = `Analyze this git diff and list the features of the system into a concise list: 
 
-      ${processedDiff}
+${processedDiff}
 
-      - Describe the features implemented into a bullet list.
-      - Use sublist for parameters details if any, but no code details.
-      - Only return a bullet list. 
-      - Do not offer explanations or further help.`;
+- Describe the features implemented into a bullet list.
+- Use sublist for parameters details if any.
+- Do NOT review, fix, refactor or improve the code or implementation details. 
+- Only return a bullet list. 
+- Do NOT offer further help or provide any additional information or context.
+      `;
 
 
       return (await this.query(prompt)).trim();
@@ -133,16 +166,15 @@ class OllamaClient {
       }
       
       const prompt = `Consolidate these features into a clear, non-redundant features list: 
-      
-      ${validFeatures.join('\n')}
 
-      - Maintain the order of features as they appear in the list. 
-      - Later features to same objects should override earlier changes.
-      - Use bullet points for each feature, keep implementation and parameters details.          
-      - Use sublist for details if needed.
-      - Return ONLY the list. 
-      - Do not offer further help or suggestions.
+${validFeatures.join('\n')}
 
+- Maintain the order of features as they appear in the list.
+- Later features update to same page or module should override earlier ones.
+- Use bullet points for each feature.
+- Use sublist for implementation and parameters details if needed.
+- Return ONLY the list. No explanations.
+- Do not offer further help or suggestions.
       `;
       return (await this.query(prompt)).trim();
     } catch (error) {
