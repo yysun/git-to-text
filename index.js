@@ -32,7 +32,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/repo${RESET} [path]       - Switch repositories
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/run${RESET} [n]           - Create and analyze diffs for every n commits
-  ${WHITE}/tags${RESET}              - Analyze changes between git tags
+  ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -214,7 +214,7 @@ async function processCommitGroups(git, groupSize, state) {
   }
 }
 
-async function processTagDiffs(git) {
+async function processTagDiffs(git, fromTag = null) {
   try {
     // Step 1: Fetch tags
     console.log(`\n${BOLD}Analyzing Tags${RESET}`);
@@ -254,49 +254,34 @@ async function processTagDiffs(git) {
       return;
     }
 
+    // If fromTag is provided, verify it exists
+    if (fromTag && !sortedTags.some(tag => tag.name === fromTag)) {
+      console.log(`${RED}Tag '${fromTag}' not found.${RESET}`);
+      console.log(`\n${BOLD}Available tags:${RESET}`);
+      sortedTags.forEach(tag => {
+        console.log(`${WHITE}${tag.name}${RESET} (${tag.date.toISOString()})`);
+      });
+      console.log(`\nPlease try again with one of the available tags.`);
+      return;
+    }
+
     // Step 2: Process tag differences with progress bar
     console.log(`${BOLD}Processing Tag Differences${RESET}`);
     
-    const totalDiffs = sortedTags.length - 1;
-    const getDiffProgress = createProgressBar(totalDiffs);
-    process.stdout.write(`Progress: ${getDiffProgress(0)}`);
+    const diffs = await getTagDiffs(git, projectType, fromTag);
     
-    const diffs = [];
-    for (let i = 0; i < totalDiffs; i++) {
-      const currentTag = sortedTags[i];
-      const nextTag = sortedTags[i + 1];
-      
-      const diff = await git.diff([currentTag.name, nextTag.name]);
-      const sourceDiff = filterSourceFiles(diff, projectType);
-      
-      if (sourceDiff) {
-        diffs.push({
-          fromTag: currentTag.name,
-          toTag: nextTag.name,
-          date: nextTag.date,
-          diff: sourceDiff
-        });
-      }
-      
-      // Update progress
-      process.stdout.clearLine(0);
-      process.stdout.cursorTo(0);
-      process.stdout.write(`Progress: ${getDiffProgress(i + 1)}`);
+    if (diffs.length === 0) {
+      console.log(`${YELLOW}No differences found between tags.${RESET}`);
+      return;
     }
     
-    // Ensure we show 100% at completion for diff processing
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
-    process.stdout.write(`Progress: ${getDiffProgress(totalDiffs)}\n\n`);
-    
-    // Step 3: Analyze diffs
     console.log(`${WHITE}Total Tags to Process:${RESET} ${YELLOW}${diffs.length}${RESET}`);
     
     for (let i = 0; i < diffs.length; i++) {
-      const { fromTag, toTag, diff } = diffs[i];
+      const { fromTag: from, toTag: to, diff } = diffs[i];
       
       console.log(`\n${BOLD}Processing Tags ${i + 1}/${diffs.length}${RESET}`);
-      console.log(`${WHITE}From:${RESET} ${fromTag} ${WHITE}→${RESET} ${toTag}`);
+      console.log(`${WHITE}From:${RESET} ${from} ${WHITE}→${RESET} ${to}`);
       
       if (diff) {
         const features = await analyzeGitDiff(diff);
@@ -306,7 +291,7 @@ async function processTagDiffs(git) {
 
     console.log(`\n${GREEN}Successfully processed all tags${RESET}`);
 
-    // Step 4: Consolidate features
+    // Step 3: Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
     const consolidatedFeatures = await consolidateFeaturesList(allFeatures);
     console.log(consolidatedFeatures);
@@ -369,7 +354,7 @@ async function handleCommand(cmd, state) {
       }
       return state;
 
-    case '/tags':
+    case '/tag':
       if (!state.repoPath) {
         console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
@@ -377,7 +362,8 @@ async function handleCommand(cmd, state) {
 
       try {
         const git = simpleGit(state.repoPath);
-        await processTagDiffs(git);
+        const fromTag = args[0] || null;
+        await processTagDiffs(git, fromTag);
       } catch (error) {
         console.error(`${RED}Error processing tags: ${error.message}${RESET}`);
       }

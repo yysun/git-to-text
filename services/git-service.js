@@ -58,7 +58,7 @@ export async function getCommitDiffs(git, projectType, onProgress) {
   return diffs;
 }
 
-export async function getTagDiffs(git, projectType) {
+export async function getTagDiffs(git, projectType, fromTag = null) {
   // Get all tags sorted by date
   const tags = await git.tags();
   const sortedTags = [];
@@ -73,9 +73,18 @@ export async function getTagDiffs(git, projectType) {
   // Sort tags by date
   sortedTags.sort((a, b) => a.date - b.date);
   
+  // Find starting index if fromTag is provided
+  let startIndex = 0;
+  if (fromTag) {
+    startIndex = sortedTags.findIndex(tag => tag.name === fromTag);
+    if (startIndex === -1) {
+      throw new Error(`Tag '${fromTag}' not found`);
+    }
+  }
+  
   // Get diffs between consecutive tags
   const diffs = [];
-  for (let i = 0; i < sortedTags.length - 1; i++) {
+  for (let i = startIndex; i < sortedTags.length - 1; i++) {
     const currentTag = sortedTags[i];
     const nextTag = sortedTags[i + 1];
     

@@ -42,7 +42,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/repo [path]` - Switch to a different repository
 - `/features` - Show summarized features extracted from commits
 - `/run [n]` - Create and analyze diffs for every n commits
-- `/tags` - Analyze changes between git tags and extract features
+- `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
 - `/exit` - Exit the program
 
 ### Example Session
@@ -50,7 +50,8 @@ If no repository path is provided, you will be prompted to enter one.
 ```bash
 > node index.js /path/to/repo
 > /run 5  # Analyze commits in groups of 5
-> /tags   # Analyze changes between tags
+> /tag   # Analyze all tags
+> /tag v1.0.0  # Analyze tags starting from v1.0.0
 > /features  # Display extracted features
 ```
 
