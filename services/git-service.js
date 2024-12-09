@@ -25,7 +25,7 @@ export function filterSourceFiles(diff, projectType) {
     : '';
 }
 
-export async function getCommitDiffs(git, projectType) {
+export async function getCommitDiffs(git, projectType, onProgress) {
   const log = await git.log();
   // Sort commits by date ascending (oldest first)
   const commits = log.all.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -47,6 +47,11 @@ export async function getCommitDiffs(git, projectType) {
         date: currentCommit.date,
         diff: sourceDiff
       });
+    }
+
+    // Call progress callback with current commit number
+    if (onProgress) {
+      onProgress(i + 1);
     }
   }
   
