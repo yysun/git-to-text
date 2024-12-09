@@ -205,7 +205,7 @@ async function processCommits(git, count, state) {
       }
       
       // Update progress
-      spinner.text = `Processing commits... ${getProgress(i - startIndex + 1)}\n`;
+      spinner.text = `\nProcessing commits... ${getProgress(i - startIndex + 1)}\n`;
     }
 
     // Update the last processed index
@@ -235,7 +235,6 @@ async function processCommitGroups(git, groupSize, state) {
     spinner.text = 'Processing commit groups...';
     spinner.succeed();
     
-    const groups = [];
     const getProgress = createProgressBar(totalGroups);
     
     for (let i = 0; i < total; i += groupSize) {
@@ -254,10 +253,13 @@ async function processCommitGroups(git, groupSize, state) {
       }
       
       if (combinedDiff) {
-        groups.push({
-          message: combinedMessage,
-          diff: combinedDiff
-        });
+        // Analyze this group's features
+        console.log(`\nAnalyzing group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET}`);
+        const groupFeatures = await analyzeGitDiff(combinedMessage + '\n' + combinedDiff);
+        
+        // Consolidate with existing features immediately
+        console.log(`${BOLD}\nConsolidating features for group ${Math.floor(i/groupSize) + 1}...${RESET}`);
+        globalFeatures = await consolidateFeaturesList(globalFeatures ? [globalFeatures, groupFeatures] : [groupFeatures]);
       }
       
       // Update progress and show on same line
@@ -269,13 +271,13 @@ async function processCommitGroups(git, groupSize, state) {
       if (i + groupSize >= total) {
         process.stdout.write(`${GREEN}✓ Group processing complete (${totalGroups} groups)${RESET}`);
       } else {
-        process.stdout.write(`${BOLD}📦 Processing Group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET} ${progress}`);
+        process.stdout.write(`${BOLD}\n📦 Processing Group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET} ${progress}`);
       }
     }
 
     // Move to next line after completion
     console.log();
-    return groups;
+    return [];
   } catch (error) {
     spinner.fail(`${RED}Failed to process commit groups${RESET}`);
     throw error;
@@ -366,23 +368,7 @@ async function handleCommand(cmd, state) {
 
       try {
         const git = simpleGit(state.repoPath);
-        const groups = await processCommitGroups(git, groupSize, state);
-        console.log(`${BOLD}\n🤖 Running Analysis${RESET}`);
-        
-        // Process features for each group
-        const newFeatures = [];
-        for (let i = 0; i < groups.length; i++) {
-          console.log(`\nAnalyzing group ${WHITE}${i + 1}${RESET}/${WHITE}${groups.length}${RESET}`);
-          const features = await analyzeGitDiff(groups[i].message + '\n' + groups[i].diff);
-          newFeatures.push(features);
-        }
-
-        // Combine new features with global features
-        const allFeatures = globalFeatures ? [globalFeatures, ...newFeatures] : newFeatures;
-        
-        console.log(`${BOLD}\nConsolidating features...${RESET}`);
-        globalFeatures = await consolidateFeaturesList(allFeatures);
-        
+        await processCommitGroups(git, groupSize, state);
       } catch (error) {
         console.error(`${RED}❌ Error processing commit groups: ${error.message}${RESET}`);
       }
