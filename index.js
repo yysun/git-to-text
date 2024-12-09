@@ -191,6 +191,7 @@ async function processCommitGroups(git, groupSize, state) {
     
     for (let i = 0; i < total; i += groupSize) {
       const groupEnd = Math.min(i + groupSize, total);
+      const groupNumber = Math.floor(i/groupSize) + 1;
       
       // Combine diffs in the group
       let combinedDiff = '';
@@ -205,25 +206,26 @@ async function processCommitGroups(git, groupSize, state) {
       }
       
       if (combinedDiff) {
-        // Analyze this group's features
-        // console.log(`\nAnalyzing group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET}`);
         const groupFeatures = await analyzeGitDiff(combinedMessage + '\n' + combinedDiff);
         
-        // Consolidate with existing features immediately
-        console.log(`${BOLD}\nConsolidating features for group ${Math.floor(i/groupSize) + 1}...${RESET}`);
-        globalFeatures = await consolidateFeaturesList(globalFeatures ? [globalFeatures, groupFeatures] : [groupFeatures]);
+        // Only consolidate features from second group onwards
+        if (groupNumber === 1) {
+          globalFeatures = groupFeatures;
+        } else {
+          console.log(`${BOLD}\nConsolidating features for group ${groupNumber}...${RESET}`);
+          globalFeatures = await consolidateFeaturesList([globalFeatures, groupFeatures]);
+        }
       }
       
       // Update progress and show on same line
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
-      const progress = getProgress(Math.floor(i/groupSize) + 1);
+      const progress = getProgress(groupNumber);
       
-      // If this is the last group, show completion message instead
       if (i + groupSize >= total) {
         process.stdout.write(`${GREEN}✓ Group processing complete (${totalGroups} groups)${RESET}`);
       } else {
-        process.stdout.write(`${BOLD}\n📦 Processing Group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET} ${progress}`);
+        process.stdout.write(`${BOLD}\n📦 Processing Group ${WHITE}${groupNumber}${RESET}/${WHITE}${totalGroups}${RESET} ${progress}`);
       }
     }
 

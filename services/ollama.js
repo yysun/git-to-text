@@ -1,7 +1,7 @@
 // Configuration
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
-  model: 'llama3.2:3b',
+  model: 'qwen2.5-coder',
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
@@ -138,11 +138,11 @@ class OllamaClient {
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `Analyze this git diff and list the features implemented: 
+      const prompt = `You are a business analyst. You have a git diff:
 
 ${processedDiff}
 
-Follow rules:
+Analyze this git diff and list the features implemented using rules:
 * Describe the features into a bullet list.
 * Use sublist for parameters details if any.
 * Do NOT review, fix, refactor or improve the code or implementation details. 
@@ -166,14 +166,14 @@ Follow rules:
         return 'No features to consolidate';
       }
       
-      const prompt = `Consolidate these features into a clear features list: 
+      const prompt = `You are a business analyst. You have a features list: 
 
 ${validFeatures.join('\n')}
 
-Follow rules:
+Combine these features into a bullet list using rules:
 * Maintain the order of features as they appear in the list.
 * Retaining all features and details as much as possible.
-* Later feature updates can be merged with earlier ones.
+* Later feature updates can merge into or replace with earlier ones if needed.
 * Return ONLY a bullet list. No explanations.
 * Do not offer further help or suggestions.
       `;
