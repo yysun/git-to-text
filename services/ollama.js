@@ -5,7 +5,7 @@ export const CONFIG = {
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
-  maxTokens: 1024,  // Added maxTokens config
+  maxTokens: 8192,  // Added maxTokens config
 };
 
 // ANSI escape codes
@@ -138,15 +138,16 @@ class OllamaClient {
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `Analyze this git diff and list the features of the system into a concise list: 
+      const prompt = `Analyze this git diff and list the features implemented: 
 
 ${processedDiff}
 
-- Describe the features implemented into a bullet list.
-- Use sublist for parameters details if any.
-- Do NOT review, fix, refactor or improve the code or implementation details. 
-- Only return a bullet list. 
-- Do NOT offer further help or provide any additional information or context.
+Follow rules:
+* Describe the features into a bullet list.
+* Use sublist for parameters details if any.
+* Do NOT review, fix, refactor or improve the code or implementation details. 
+* Only return a bullet list. 
+* Do NOT offer further help or provide any additional information or context.
       `;
 
 
@@ -165,16 +166,16 @@ ${processedDiff}
         return 'No features to consolidate';
       }
       
-      const prompt = `Consolidate these features into a clear, non-redundant features list: 
+      const prompt = `Consolidate these features into a clear features list: 
 
 ${validFeatures.join('\n')}
 
-- Maintain the order of features as they appear in the list.
-- Later features update to same page or module should override earlier ones.
-- Use bullet points for each feature.
-- Use sublist for implementation and parameters details if needed.
-- Return ONLY the list. No explanations.
-- Do not offer further help or suggestions.
+Follow rules:
+* Maintain the order of features as they appear in the list.
+* Retaining all features and details as much as possible.
+* Later feature updates can be merged with earlier ones.
+* Return ONLY a bullet list. No explanations.
+* Do not offer further help or suggestions.
       `;
       return (await this.query(prompt)).trim();
     } catch (error) {

@@ -31,7 +31,6 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/help${RESET}              - Show this help message
   ${WHITE}/repo${RESET} [path]       - Switch repositories
   ${WHITE}/features${RESET}          - Show summarized features
-  ${WHITE}/read${RESET} [n]          - Process the next n commits
   ${WHITE}/run${RESET} [n]           - Create and analyze diffs for every n commits
   ${WHITE}/exit${RESET}              - Exit the program
 `;
@@ -172,53 +171,6 @@ async function printHelp() {
   console.log(HELP_MESSAGE);
 }
 
-async function processCommits(git, count, state) {
-  const spinner = ora('Fetching commit history...').start();
-  
-  try {
-    const { diffs } = state;
-    const startIndex = state.lastProcessedIndex + 1;
-    const endIndex = Math.min(startIndex + count, diffs.length);
-    const total = endIndex - startIndex;
-
-    if (startIndex >= diffs.length) {
-      spinner.info(`${YELLOW}All commits have been processed. Use /repo to analyze a different repository.${RESET}`);
-      return [];
-    }
-
-    spinner.text = 'Reading commits...';
-    spinner.succeed();
-    
-    const processingDiffs = [];
-    const getProgress = createProgressBar(total);
-    
-    for (let i = startIndex; i < endIndex; i++) {
-      const diff = diffs[i];
-      console.log(`${BOLD}\n📝 Processing Commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
-      console.log(`${DIM}Date: ${new Date(diff.date).toLocaleString()}`);
-      console.log(diff.message + RESET);
-      
-      if (diff.diff) {
-        processingDiffs.push(diff);
-      } else {
-        console.log(`${YELLOW}No source file changes in this commit${RESET}`);
-      }
-      
-      // Update progress
-      spinner.text = `\nProcessing commits... ${getProgress(i - startIndex + 1)}\n`;
-    }
-
-    // Update the last processed index
-    state.lastProcessedIndex = endIndex - 1;
-
-    console.log(`${GREEN}\n✓ Commit processing complete${RESET}`);
-    return processingDiffs;
-  } catch (error) {
-    spinner.fail(`${RED}Failed to process commits${RESET}`);
-    throw error;
-  }
-}
-
 async function processCommitGroups(git, groupSize, state) {
   const spinner = ora('Fetching commit history...').start();
   
@@ -254,7 +206,7 @@ async function processCommitGroups(git, groupSize, state) {
       
       if (combinedDiff) {
         // Analyze this group's features
-        console.log(`\nAnalyzing group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET}`);
+        // console.log(`\nAnalyzing group ${WHITE}${Math.floor(i/groupSize) + 1}${RESET}/${WHITE}${totalGroups}${RESET}`);
         const groupFeatures = await analyzeGitDiff(combinedMessage + '\n' + combinedDiff);
         
         // Consolidate with existing features immediately
@@ -314,43 +266,7 @@ async function handleCommand(cmd, state) {
         console.log('━'.repeat(50));
         console.log(DIM + globalFeatures + RESET);
       } else {
-        console.log(`${YELLOW}No features analyzed yet. Use /read or /run to analyze commits.${RESET}`);
-      }
-      return state;
-
-    case '/read':
-      if (!state.repoPath) {
-        console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
-        return state;
-      }
-      
-      const count = parseInt(args[0]);
-      if (isNaN(count) || count <= 0) {
-        console.log(`${YELLOW}Please provide a valid positive number of commits to process.${RESET}`);
-        return state;
-      }
-
-      try {
-        const git = simpleGit(state.repoPath);
-        const diffs = await processCommits(git, count, state);
-        console.log(`${BOLD}\n🤖 Running Analysis${RESET}`);
-        
-        // Process features sequentially
-        const newFeatures = [];
-        for (let i = 0; i < diffs.length; i++) {
-          console.log(`\nAnalyzing commit ${WHITE}${i + 1}${RESET}/${WHITE}${diffs.length}${RESET}`);
-          const features = await analyzeGitDiff(diffs[i].message + '\n' + diffs[i].diff);
-          newFeatures.push(features);
-        }
-
-        // Combine new features with global features
-        const allFeatures = globalFeatures ? [globalFeatures, ...newFeatures] : newFeatures;
-        
-        console.log(`${BOLD}\nConsolidating features...${RESET}`);
-        globalFeatures = await consolidateFeaturesList(allFeatures);
-        
-      } catch (error) {
-        console.error(`${RED}❌ Error processing commits: ${error.message}${RESET}`);
+        console.log(`${YELLOW}No features analyzed yet. Use /run to analyze commits.${RESET}`);
       }
       return state;
 
