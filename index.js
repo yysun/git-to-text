@@ -7,7 +7,7 @@ import readline from 'readline';
 import ora from 'ora';
 import { analyzeGitDiff, consolidateFeaturesList } from './services/ollama.js';
 import { detectProjectType } from './services/project-analyzer.js';
-import { filterSourceFiles, getTagDiffs, getCommitDiffs } from './services/git-service.js';
+import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,6 +23,7 @@ const WHITE = '\x1b[37m';
 const GRAY = '\x1b[90m';
 
 // Features array to track all features
+let features = '';
 let allFeatures = [];
 let projectType = 'unknown';
 
@@ -94,6 +95,7 @@ async function loadRepository(path) {
     const stats = await getRepoStats(git, totalCommits);
     
     // Reset features when loading a new repository
+    features = '';
     allFeatures = [];
     
     console.log(`${GREEN}Repository loaded successfully${RESET}`);
@@ -204,8 +206,9 @@ async function processCommitGroups(git, groupSize, state) {
 
     // Step 3: Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
-    const consolidatedFeatures = await consolidateFeaturesList(allFeatures);
-    console.log(consolidatedFeatures);
+    features = await consolidateFeaturesList(allFeatures);
+    
+    console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
     
     return [];
   } catch (error) {
@@ -293,8 +296,8 @@ async function processTagDiffs(git, fromTag = null) {
 
     // Step 3: Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
-    const consolidatedFeatures = await consolidateFeaturesList(allFeatures);
-    console.log(consolidatedFeatures);
+    features = await consolidateFeaturesList(allFeatures);
+    console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
 
   } catch (error) {
     console.error(`\n${RED}Failed to process tags: ${error.message}${RESET}`);
@@ -326,9 +329,9 @@ async function handleCommand(cmd, state) {
       return state;
 
     case '/features':
-      if (allFeatures.length > 0) {
-        console.log(`${BOLD}\nFeatures Analysis${RESET}`);
-        console.log(DIM + allFeatures[allFeatures.length - 1] + RESET);
+      if (features.length > 0) {
+        console.log(`${BOLD}\nFeatures: ${RESET}`);
+        console.log(features);
       } else {
         console.log(`${YELLOW}No features analyzed yet. Use /run to analyze commits.${RESET}`);
       }
