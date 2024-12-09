@@ -41,7 +41,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/help` - Show help message with available commands
 - `/repo [path]` - Switch to a different repository
 - `/features` - Show summarized features extracted from commits
-- `/run [n]` - Create and analyze diffs for every n commits
+- `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
 - `/exit` - Exit the program
 
@@ -49,7 +49,7 @@ If no repository path is provided, you will be prompted to enter one.
 
 ```bash
 > node index.js /path/to/repo
-> /run 5  # Analyze commits in groups of 5
+> /commit 5  # Analyze commits in groups of 5
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
 > /features  # Display extracted features

@@ -31,7 +31,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/help${RESET}              - Show this help message
   ${WHITE}/repo${RESET} [path]       - Switch repositories
   ${WHITE}/features${RESET}          - Show summarized features
-  ${WHITE}/run${RESET} [n]           - Create and analyze diffs for every n commits
+  ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
   ${WHITE}/exit${RESET}              - Exit the program
 `;
@@ -334,7 +334,7 @@ async function handleCommand(cmd, state) {
       }
       return state;
 
-    case '/run':
+    case '/commit':
       if (!state.repoPath) {
         console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
