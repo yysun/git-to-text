@@ -7,7 +7,7 @@ import readline from 'readline';
 import ora from 'ora';
 import { analyzeGitDiff, consolidateFeaturesList } from './services/ollama.js';
 import { detectProjectType } from './services/project-analyzer.js';
-import { filterSourceFiles } from './services/git-service.js';
+import { filterSourceFiles, getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,6 +32,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/repo${RESET} [path]       - Switch repositories
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/run${RESET} [n]           - Create and analyze diffs for every n commits
+  ${WHITE}/tags${RESET}              - Analyze changes between git tags
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -73,44 +74,37 @@ function createProgressBar(total) {
   };
 }
 
-async function getCommitDiffs(repoPath) {
-  const git = simpleGit(repoPath);
-  const spinner = ora('Fetching commit history...').start();
+async function loadRepository(path) {
+  const git = simpleGit(path);
+  const validPath = await validateRepoPath(path);
+  const spinner = ora('Loading repository...').start();
   
   try {
-    const log = await git.log();
-    // Sort commits by date ascending (oldest first)
-    const commits = log.all.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const total = commits.length - 1;
-    const diffs = [];
-    const getProgress = createProgressBar(total);
-
-    spinner.text = 'Reading repository commits...';
+    // Detect project type
+    projectType = await detectRepoType(validPath);
+    spinner.text = 'Detecting project type...';
+    console.log(`${BOLD}\n🔍 Project Analysis${RESET}`);
+    console.log('━'.repeat(50));
+    console.log(`${WHITE}Detected Type:${RESET}    ${GREEN}${projectType}${RESET}`);
     
-    for (let i = 0; i < total; i++) {
-      const currentCommit = commits[i];
-      const nextCommit = commits[i + 1];
-      
-      spinner.text = `Reading commits... ${getProgress(i + 1)}\n`;
-      
-      const diff = await git.diff([currentCommit.hash, nextCommit.hash]);
-      // Filter diff to only include source files based on project type
-      const sourceDiff = filterSourceFiles(diff, projectType);
-      
-      if (sourceDiff) {
-        diffs.push({
-          commitHash: currentCommit.hash,
-          message: currentCommit.message,
-          date: currentCommit.date,
-          diff: sourceDiff
-        });
-      }
-    }
-
-    spinner.succeed(`${GREEN}Repository analysis complete${RESET}`);
-    return diffs;
+    spinner.text = 'Fetching commit history...';
+    const diffs = await getCommitDiffs(git, projectType);
+    const stats = await getRepoStats(git);
+    
+    // Reset global features when loading a new repository
+    globalFeatures = '';
+    
+    spinner.succeed(`${GREEN}Repository loaded successfully${RESET}`);
+    
+    return {
+      repoPath: validPath,
+      diffs,
+      stats,
+      features: null,
+      lastProcessedIndex: -1 // Track the last processed commit index
+    };
   } catch (error) {
-    spinner.fail(`${RED}Failed to analyze repository${RESET}`);
+    spinner.fail(`${RED}Failed to load repository${RESET}`);
     throw error;
   }
 }
@@ -142,37 +136,12 @@ async function detectRepoType(repoPath) {
   return detectProjectType(fileList);
 }
 
-async function loadRepository(path) {
-  const git = simpleGit(path);
-  const validPath = await validateRepoPath(path);
-  
-  // Detect project type
-  projectType = await detectRepoType(validPath);
-  console.log(`${BOLD}\n🔍 Project Analysis${RESET}`);
-  console.log('━'.repeat(50));
-  console.log(`${WHITE}Detected Type:${RESET}    ${GREEN}${projectType}${RESET}`);
-  
-  const diffs = await getCommitDiffs(validPath);
-  const stats = await getRepoStats(git);
-  
-  // Reset global features when loading a new repository
-  globalFeatures = '';
-  
-  return {
-    repoPath: validPath,
-    diffs,
-    stats,
-    features: null,
-    lastProcessedIndex: -1 // Track the last processed commit index
-  };
-}
-
 async function printHelp() {
   console.log(HELP_MESSAGE);
 }
 
 async function processCommitGroups(git, groupSize, state) {
-  const spinner = ora('Fetching commit history...').start();
+  const spinner = ora('Processing commits...').start();
   
   try {
     const { diffs } = state;
@@ -238,6 +207,45 @@ async function processCommitGroups(git, groupSize, state) {
   }
 }
 
+async function processTagDiffs(git) {
+  const spinner = ora('Analyzing tags...').start();
+  
+  try {
+    const tagDiffs = await getTagDiffs(git, projectType);
+    
+    if (tagDiffs.length === 0) {
+      spinner.info(`${YELLOW}No tags found in repository.${RESET}`);
+      return;
+    }
+
+    spinner.text = 'Processing tag differences...';
+    const total = tagDiffs.length;
+    const getProgress = createProgressBar(total);
+    
+    for (let i = 0; i < tagDiffs.length; i++) {
+      const { fromTag, toTag, diff } = tagDiffs[i];
+      
+      spinner.text = `Processing tags ${fromTag} → ${toTag} ${getProgress(i + 1)}`;
+      
+      if (diff) {
+        const features = await analyzeGitDiff(diff);
+        
+        // For first tag pair, set as initial features
+        if (i === 0) {
+          globalFeatures = features;
+        } else {
+          // Consolidate with previous features
+          globalFeatures = await consolidateFeaturesList([globalFeatures, features]);
+        }
+      }
+    }
+
+    spinner.succeed(`${GREEN}Tag analysis complete${RESET}`);
+  } catch (error) {
+    spinner.fail(`${RED}Failed to process tags: ${error.message}${RESET}`);
+  }
+}
+
 async function handleCommand(cmd, state) {
   const [command, ...args] = cmd.toLowerCase().split(' ');
   
@@ -289,6 +297,20 @@ async function handleCommand(cmd, state) {
         await processCommitGroups(git, groupSize, state);
       } catch (error) {
         console.error(`${RED}❌ Error processing commit groups: ${error.message}${RESET}`);
+      }
+      return state;
+
+    case '/tags':
+      if (!state.repoPath) {
+        console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
+        return state;
+      }
+
+      try {
+        const git = simpleGit(state.repoPath);
+        await processTagDiffs(git);
+      } catch (error) {
+        console.error(`${RED}❌ Error processing tags: ${error.message}${RESET}`);
       }
       return state;
 

@@ -6,7 +6,7 @@ A command-line tool that analyzes Git repositories and generates human-readable 
 
 - Node.js (v14 or higher)
 - Git installed on your system
-- Ollama running locally with the `qwen2.5-coder` model
+- Ollama running locally with the `llama3.2` model
 
 ## Installation
 
@@ -23,7 +23,7 @@ npm install
 
 3. Make sure Ollama is running locally with the required model:
 ```bash
-ollama run qwen2.5-coder
+ollama run llama3.2
 ```
 
 ## Usage
@@ -42,6 +42,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/repo [path]` - Switch to a different repository
 - `/features` - Show summarized features extracted from commits
 - `/run [n]` - Create and analyze diffs for every n commits
+- `/tags` - Analyze changes between git tags and extract features
 - `/exit` - Exit the program
 
 ### Example Session
@@ -49,6 +50,7 @@ If no repository path is provided, you will be prompted to enter one.
 ```bash
 > node index.js /path/to/repo
 > /run 5  # Analyze commits in groups of 5
+> /tags   # Analyze changes between tags
 > /features  # Display extracted features
 ```
 
@@ -62,6 +64,7 @@ If no repository path is provided, you will be prompted to enter one.
 - Repository statistics
 - Intelligent feature consolidation
 - Error handling and retry mechanisms
+- Tag-based analysis for version comparisons
 
 ## Configuration
 
@@ -106,6 +109,7 @@ The tool provides:
 - Repository statistics
 - Consolidated feature lists
 - Real-time processing feedback
+- Tag-based feature analysis
 
 ## License
 

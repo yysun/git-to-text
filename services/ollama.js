@@ -1,7 +1,7 @@
 // Configuration
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
-  model: 'qwen2.5-coder',
+  model: 'llama3.2:3b',
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
