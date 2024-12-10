@@ -44,6 +44,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
 - `/speak [lang]` - Set language for responses (defaults to English)
+- `/log [on/off]` - Enable/disable logging to file with timestamped output
 - `/exit` - Exit the program
 
 ### Example Session
@@ -55,6 +56,8 @@ If no repository path is provided, you will be prompted to enter one.
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
 > /features  # Display extracted features
+> /log on  # Enable logging to file
+> /log off  # Disable logging
 ```
 
 ## Features
@@ -69,6 +72,12 @@ If no repository path is provided, you will be prompted to enter one.
 - Error handling and retry mechanisms
 - Tag-based analysis for version comparisons
 - Multi-language support for responses
+- Detailed logging capabilities
+  - Timestamped log files
+  - Complete diff history
+  - Individual feature summaries
+  - Consolidated feature analysis
+  - Automatic file naming with ISO timestamps
 
 ## Configuration
 

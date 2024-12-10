@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import readline from 'readline';
 import ora from 'ora';
+import fs from 'fs/promises';
 import { analyzeGitDiff, consolidateFeaturesList, setLanguage } from './services/ollama.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
@@ -28,6 +29,10 @@ let allFeatures = [];
 let projectType = 'unknown';
 let language = 'English';
 
+// Add logging state
+let isLogging = false;
+let logFile = null;
+
 const HELP_MESSAGE = `
 ${BOLD}Available Commands:${RESET}
   ${WHITE}/help${RESET}              - Show this help message
@@ -36,6 +41,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
   ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
+  ${WHITE}/log${RESET} [on/off]      - Enable/disable logging to file
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -144,6 +150,48 @@ async function printHelp() {
   console.log(HELP_MESSAGE);
 }
 
+// Modify the writeToLog helper function
+async function writeToLog(entry) {
+  if (!isLogging || !logFile) return;
+  
+  try {
+    const timestamp = new Date().toISOString();
+    let logMessage = '';
+
+    switch (entry.type) {
+      case 'session_start':
+        logMessage = `[${timestamp}] Session started\n`;
+        logMessage += `Repository: ${entry.repository}\n`;
+        logMessage += `Project Type: ${entry.projectType}\n`;
+        logMessage += `Language: ${entry.language}\n`;
+        break;
+      case 'commit_features':
+        logMessage = `[${timestamp}] Commit Analysis\n`;
+        logMessage += `From: ${entry.commitRange.from}\n`;
+        logMessage += `To: ${entry.commitRange.to}\n`;
+        logMessage += `Features:\n${entry.features}\n`;
+        break;
+      case 'tag_features':
+        logMessage = `[${timestamp}] Tag Analysis\n`;
+        logMessage += `From: ${entry.tagRange.from}\n`;
+        logMessage += `To: ${entry.tagRange.to}\n`;
+        logMessage += `Features:\n${entry.features}\n`;
+        break;
+      case 'consolidated_features':
+        logMessage = `[${timestamp}] Consolidated Features\n`;
+        logMessage += `${entry.features}\n`;
+        break;
+      case 'session_end':
+        logMessage = `[${timestamp}] Session ended\n`;
+        break;
+    }
+
+    await fs.appendFile(logFile, logMessage + '\n');
+  } catch (error) {
+    console.error(`${RED}Failed to write to log: ${error.message}${RESET}`);
+  }
+}
+
 async function processCommitGroups(git, groupSize, state) {
   const totalCommits = state.totalCommits;
 
@@ -196,6 +244,14 @@ async function processCommitGroups(git, groupSize, state) {
 
       if (diff) {
         const features = await analyzeGitDiff(message + '\n' + diff);
+        await writeToLog({
+          type: 'commit_features',
+          commitRange: {
+            from: fromCommit.hash,
+            to: toCommit.hash
+          },
+          features
+        });
         allFeatures.push(features);
       }
     }
@@ -203,6 +259,10 @@ async function processCommitGroups(git, groupSize, state) {
     // Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
     features = await consolidateFeaturesList(allFeatures);
+    await writeToLog({
+      type: 'consolidated_features',
+      features
+    });
 
     console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
 
@@ -284,6 +344,14 @@ async function processTagDiffs(git, fromTag = null) {
 
       if (diff) {
         const features = await analyzeGitDiff(diff);
+        await writeToLog({
+          type: 'tag_features',
+          tagRange: {
+            from,
+            to
+          },
+          features
+        });
         allFeatures.push(features);
       }
     }
@@ -293,6 +361,10 @@ async function processTagDiffs(git, fromTag = null) {
     // Step 3: Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
     features = await consolidateFeaturesList(allFeatures);
+    await writeToLog({
+      type: 'consolidated_features',
+      features
+    });
     console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
 
   } catch (error) {
@@ -372,6 +444,41 @@ async function handleCommand(cmd, state) {
         await processTagDiffs(git, fromTag);
       } catch (error) {
         console.error(`${RED}Error processing tags: ${error.message}${RESET}`);
+      }
+      return state;
+
+    case '/log':
+      const action = args[0]?.toLowerCase();
+      if (action === 'on') {
+        if (!isLogging) {
+          // Extract repo name from path
+          const repoName = state.repoPath ? state.repoPath.split('/').pop() : 'unnamed-repo';
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          logFile = `${repoName}-${timestamp}.log`;
+          isLogging = true;
+          await writeToLog({
+            type: 'session_start',
+            repository: state.repoPath,
+            projectType,
+            language
+          });
+          console.log(`${GREEN}Logging enabled. Output will be saved to: ${WHITE}${logFile}${RESET}`);
+        } else {
+          console.log(`${YELLOW}Logging is already enabled${RESET}`);
+        }
+      } else if (action === 'off') {
+        if (isLogging) {
+          await writeToLog({
+            type: 'session_end'
+          });
+          isLogging = false;
+          logFile = null;
+          console.log(`${GREEN}Logging disabled${RESET}`);
+        } else {
+          console.log(`${YELLOW}Logging is already disabled${RESET}`);
+        }
+      } else {
+        console.log(`${YELLOW}Usage: /log [on|off]${RESET}`);
       }
       return state;
 
