@@ -1,5 +1,7 @@
 import { isSourceFile } from './project-analyzer.js';
 
+const EMPTY_TREE_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
 export function filterSourceFiles(diff, projectType) {
   // Split diff into file sections
   const diffSections = diff.split('diff --git');
@@ -29,7 +31,6 @@ export async function getCommitDiffs(git, projectType, groupSize = 1, onProgress
   const commits = await git.log();
   const diffs = [];
   const commitList = commits.all.reverse(); // Oldest to newest
-  const emptyTreeHash = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
   if (commitList.length === 0) {
     return diffs;
@@ -42,12 +43,12 @@ export async function getCommitDiffs(git, projectType, groupSize = 1, onProgress
     // Start with commit index 0 vs empty tree
     const firstCommit = commitList[0];
     try {
-      const firstDiff = await git.diff([emptyTreeHash, firstCommit.hash]);
+      const firstDiff = await git.diff([EMPTY_TREE_HASH, firstCommit.hash]);
       if (firstDiff) {
         const filteredDiff = filterSourceFiles(firstDiff, projectType);
         if (filteredDiff) {
           diffs.push({
-            fromCommit: { hash: emptyTreeHash, message: 'Empty tree' },
+            fromCommit: { hash: EMPTY_TREE_HASH, message: 'Empty tree' },
             toCommit: firstCommit,
             diff: filteredDiff,
             message: firstCommit.message
@@ -100,12 +101,12 @@ export async function getCommitDiffs(git, projectType, groupSize = 1, onProgress
     if (startIndex < commitList.length) {
       const firstNthCommit = commitList[startIndex];
       try {
-        const firstDiff = await git.diff([emptyTreeHash, firstNthCommit.hash]);
+        const firstDiff = await git.diff([EMPTY_TREE_HASH, firstNthCommit.hash]);
         if (firstDiff) {
           const filteredDiff = filterSourceFiles(firstDiff, projectType);
           if (filteredDiff) {
             diffs.push({
-              fromCommit: { hash: emptyTreeHash, message: 'Empty tree' },
+              fromCommit: { hash: EMPTY_TREE_HASH, message: 'Empty tree' },
               toCommit: firstNthCommit,
               diff: filteredDiff,
               message: firstNthCommit.message
@@ -161,6 +162,22 @@ export async function getTagDiffs(git, projectType, fromTag = null) {
   const tags = await git.tags();
   const sortedTags = [];
   
+  // If no tags and no fromTag specified, return diff from empty tree to HEAD
+  if (tags.all.length === 0 && !fromTag) {
+    const headDiff = await git.diff([EMPTY_TREE_HASH, 'HEAD']);
+    const sourceHeadDiff = filterSourceFiles(headDiff, projectType);
+    
+    if (sourceHeadDiff) {
+      return [{
+        fromTag: 'empty-tree',
+        toTag: 'HEAD',
+        date: new Date(),
+        diff: sourceHeadDiff
+      }];
+    }
+    return [];
+  }
+  
   // Get creation date for each tag
   for (const tagName of tags.all) {
     const show = await git.show([tagName]);
@@ -182,6 +199,24 @@ export async function getTagDiffs(git, projectType, fromTag = null) {
   
   // Get diffs between consecutive tags
   const diffs = [];
+
+  // If no fromTag provided, start with empty tree hash to first tag
+  if (!fromTag && sortedTags.length > 0) {
+    const firstTag = sortedTags[0];
+    const firstDiff = await git.diff([EMPTY_TREE_HASH, firstTag.name]);
+    const sourceDiff = filterSourceFiles(firstDiff, projectType);
+    
+    if (sourceDiff) {
+      diffs.push({
+        fromTag: 'empty-tree',
+        toTag: firstTag.name,
+        date: firstTag.date,
+        diff: sourceDiff
+      });
+    }
+  }
+  
+  // Get diffs between consecutive tags
   for (let i = startIndex; i < sortedTags.length - 1; i++) {
     const currentTag = sortedTags[i];
     const nextTag = sortedTags[i + 1];
@@ -196,6 +231,22 @@ export async function getTagDiffs(git, projectType, fromTag = null) {
         toTag: nextTag.name,
         date: nextTag.date,
         diff: sourceDiff
+      });
+    }
+  }
+
+  // Add diff between last tag and HEAD if there are any tags
+  if (sortedTags.length > 0) {
+    const lastTag = sortedTags[sortedTags.length - 1];
+    const headDiff = await git.diff([lastTag.name, 'HEAD']);
+    const sourceHeadDiff = filterSourceFiles(headDiff, projectType);
+    
+    if (sourceHeadDiff) {
+      diffs.push({
+        fromTag: lastTag.name,
+        toTag: 'HEAD',
+        date: new Date(),
+        diff: sourceHeadDiff
       });
     }
   }
