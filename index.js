@@ -178,7 +178,6 @@ async function processDiffs(git, type, params, state) {
     allFeatures = [];
 
     // Process each diff
-    const diffSpinner = !CONFIG.streaming ? ora().start() : null;
     for (let i = 0; i < diffs.length; i++) {
       const diff = diffs[i];
       const diffMessage = type === 'commit' 
@@ -187,26 +186,42 @@ async function processDiffs(git, type, params, state) {
             : diff.fromCommit.hash} → ${diff.toCommit.hash}`
         : `${diff.fromTag} → ${diff.toTag}`;
 
-      if (!CONFIG.streaming) {
-        diffSpinner.text = `Processing diff ${i + 1}/${diffs.length}: ${diffMessage}`;
-      } else {
-        console.log(`\n${BOLD}Processing Diff ${i + 1}/${diffs.length}${RESET}`);
-        console.log(`${WHITE}From:${RESET} ${diffMessage}`);
+      // Skip processing if no diff content
+      if (!diff.diff) {
+        const message = `No changes found for ${type} ${i + 1}/${diffs.length}`;
+        console.log(`${YELLOW}${message}${RESET}`)
+        continue;
       }
 
-      if (diff.diff) {
-        const diffFeatures = await analyzeGitDiff(
-          type === 'commit' ? diff.message + '\n' + diff.diff : diff.diff
-        );
+      // Prepare diff content for analysis
+      const diffContent = type === 'commit' 
+        ? diff.message + '\n' + diff.diff 
+        : diff.diff;
+
+      // Process in streaming mode
+      if (CONFIG.streaming) {
+        console.log(`\n${BOLD}Processing ${type} ${i + 1}/${diffs.length}: ${diffMessage}${RESET}`);
+        const diffFeatures = await analyzeGitDiff(diffContent);
+        console.log(`${DIM}${diffFeatures}${RESET}`);
+        allFeatures.push(diffFeatures);
+      } 
+      // Process in non-streaming mode
+      else {
+        const spinner = ora(`Processing ${type} ${i + 1}/${diffs.length}: ${diffMessage}`).start();
+        spinner.text = `Analyzing changes for ${type} ${i + 1}/${diffs.length}...`;
+        
+        const diffFeatures = await analyzeGitDiff(diffContent);
+        spinner.succeed(`Processed ${type} ${i + 1}/${diffs.length}: ${diffMessage}`);
+        console.log(`\n${DIM}${diffFeatures}${RESET}\n`);
         allFeatures.push(diffFeatures);
       }
     }
-    if (diffSpinner) diffSpinner.succeed('Processed all diffs');
 
     // Consolidate features
-    console.log('\nConsolidating features...');
+    const consolidateSpinner = ora('Consolidating features...').start();
     features = await consolidateFeaturesList(allFeatures);
-    console.log(`${GREEN}Features consolidated successfully${RESET}`);
+    consolidateSpinner.succeed('Features consolidated successfully');
+    console.log(`${DIM}${features}${RESET}`);
 
   } catch (error) {
     console.error(`${RED}Failed to process ${type}s: ${error.message}${RESET}`);
@@ -240,7 +255,7 @@ async function handleCommand(cmd, state) {
     case '/features':
       if (features.length > 0) {
         console.log(`${BOLD}\nFeatures: ${RESET}`);
-        console.log(features);
+        console.log(`${DIM}${features}${RESET}`);
       } else {
         console.log(`${YELLOW}No features analyzed yet. Use /run to analyze commits.${RESET}`);
       }
@@ -304,6 +319,7 @@ async function handleCommand(cmd, state) {
         const spinner = ora('Re-running feature consolidation...').start();
         features = await consolidateFeaturesList(allFeatures);
         spinner.succeed('Features consolidated successfully');
+        console.log(`${DIM}${features}${RESET}`);
       } catch (error) {
         console.error(`${RED}Error consolidating features: ${error.message}${RESET}`);
       }
