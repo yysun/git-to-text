@@ -45,7 +45,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
 - `/retry` - Re-run last consolidation (from /commit or /tag)
 - `/speak [lang]` - Set language for responses (defaults to English)
-- `/log [on/off]` - Enable/disable logging to file with timestamped output
+- `/export` - Export features to a timestamped log file with repo name
 - `/exit` - Exit the program
 
 ### Example Session
@@ -59,8 +59,7 @@ If no repository path is provided, you will be prompted to enter one.
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
 > /retry     # Re-run the tag analysis with same parameters
 > /features  # Display extracted features
-> /log on  # Enable logging to file
-> /log off  # Disable logging
+> /export    # Save features to a timestamped file
 ```
 
 ## Features
@@ -75,12 +74,10 @@ If no repository path is provided, you will be prompted to enter one.
 - Error handling and retry mechanisms
 - Tag-based analysis for version comparisons
 - Multi-language support for responses
-- Detailed logging capabilities
-  - Timestamped log files
-  - Complete diff history
-  - Individual feature summaries
-  - Consolidated feature analysis
-  - Automatic file naming with ISO timestamps
+- Feature export functionality
+  - Saves both individual and consolidated features
+  - Includes repository metadata
+  - Timestamped files with repo name
 
 ## Configuration
 
@@ -128,6 +125,7 @@ The tool provides:
 - Real-time processing feedback
 - Tag-based feature analysis
 - Multi-language feature descriptions
+- Feature export files with repository context
 
 ## License
 
