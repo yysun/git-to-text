@@ -174,10 +174,12 @@ ${validFeatures.join('\n')}
 
 Please consolidate these features following rules below:
 1. Maintain the original chronological order of features.
-2. Retaining details as much as possible, but removing any redundant information.
-3. ONLY return a clear and concise bullet list.
-4. Do not offer further help or suggestions.
-5. Must respond in ${this.config.language}.
+2. Describe overall system structure and functionalities.
+3. Describe features and removing any redundant information.
+4. Focus on what are features and avoid what have been done.
+5. ONLY return a clear and concise bullet list.
+6. Do not offer further help or suggestions.
+7. Must respond in ${this.config.language}.
 
 Here is the consolidated list of features:
 `;
