@@ -43,6 +43,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/features` - Show summarized features extracted from commits
 - `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
+- `/retry` - Re-run last consolidation (from /commit or /tag)
 - `/speak [lang]` - Set language for responses (defaults to English)
 - `/log [on/off]` - Enable/disable logging to file with timestamped output
 - `/exit` - Exit the program
@@ -52,9 +53,11 @@ If no repository path is provided, you will be prompted to enter one.
 ```bash
 > node index.js /path/to/repo
 > /commit 5  # Analyze commits in groups of 5
+> /retry     # Re-run the commit analysis with same parameters
 > /speak Spanish  # Switch output to Spanish
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
+> /retry     # Re-run the tag analysis with same parameters
 > /features  # Display extracted features
 > /log on  # Enable logging to file
 > /log off  # Disable logging

@@ -29,6 +29,12 @@ let allFeatures = [];
 let projectType = 'unknown';
 let language = 'English';
 
+// Track last run for retry functionality
+let lastRun = {
+  type: null, // 'commit' or 'tag'
+  params: null // groupSize for commit, fromTag for tag
+};
+
 // Add logging state
 let isLogging = false;
 let logFile = null;
@@ -40,6 +46,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
+  ${WHITE}/retry${RESET}             - Re-run last consolidation (from /commit or /tag)
   ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
   ${WHITE}/log${RESET} [on/off]      - Enable/disable logging to file
   ${WHITE}/exit${RESET}              - Exit the program
@@ -105,6 +112,8 @@ async function loadRepository(path) {
     // Reset features when loading a new repository
     features = '';
     allFeatures = [];
+    // Reset lastRun when loading a new repository
+    lastRun = { type: null, params: null };
 
     console.log(`${GREEN}Repository loaded successfully${RESET}`);
 
@@ -150,7 +159,6 @@ async function printHelp() {
   console.log(HELP_MESSAGE);
 }
 
-// Modify the writeToLog helper function
 async function writeToLog(entry) {
   if (!isLogging || !logFile) return;
   
@@ -427,6 +435,8 @@ async function handleCommand(cmd, state) {
       try {
         const git = simpleGit(state.repoPath);
         await processCommitGroups(git, groupSize, state);
+        // Update lastRun after successful commit processing
+        lastRun = { type: 'commit', params: groupSize };
       } catch (error) {
         console.error(`${RED}Error processing commit groups: ${error.message}${RESET}`);
       }
@@ -442,8 +452,32 @@ async function handleCommand(cmd, state) {
         const git = simpleGit(state.repoPath);
         const fromTag = args[0] || null;
         await processTagDiffs(git, fromTag);
+        // Update lastRun after successful tag processing
+        lastRun = { type: 'tag', params: fromTag };
       } catch (error) {
         console.error(`${RED}Error processing tags: ${error.message}${RESET}`);
+      }
+      return state;
+
+    case '/retry':
+      if (!state.repoPath) {
+        console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
+        return state;
+      }
+      if (!lastRun.type) {
+        console.log(`${YELLOW}No previous run to retry. Use /commit or /tag first.${RESET}`);
+        return state;
+      }
+
+      try {
+        const git = simpleGit(state.repoPath);
+        if (lastRun.type === 'commit') {
+          await processCommitGroups(git, lastRun.params, state);
+        } else if (lastRun.type === 'tag') {
+          await processTagDiffs(git, lastRun.params);
+        }
+      } catch (error) {
+        console.error(`${RED}Error retrying last run: ${error.message}${RESET}`);
       }
       return state;
 
