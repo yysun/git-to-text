@@ -52,7 +52,9 @@ class OllamaClient {
     const reader = response.body.getReader();
     let fullText = '';
     let buffer = '';
-    process.stdout.write('\n');
+    if (this.config.streaming) {
+      process.stdout.write('\n');
+    }
 
     try {
       while (true) {
@@ -72,7 +74,9 @@ class OllamaClient {
             try {
               const parsed = JSON.parse(line);
               if (parsed.response) {
-                process.stdout.write(DIM + parsed.response + RESET);
+                if (this.config.streaming) {
+                  process.stdout.write(DIM + parsed.response + RESET);
+                }
                 fullText += parsed.response;
               }
             } catch (e) {
@@ -95,7 +99,9 @@ class OllamaClient {
         try {
           const parsed = JSON.parse(buffer);
           if (parsed.response) {
-            process.stdout.write(DIM + parsed.response + RESET);
+            if (this.config.streaming) {
+              process.stdout.write(DIM + parsed.response + RESET);
+            }
             fullText += parsed.response;
           }
         } catch (e) {
@@ -106,7 +112,9 @@ class OllamaClient {
       reader.releaseLock();
     }
     
-    process.stdout.write('\n');
+    if (this.config.streaming) {
+      process.stdout.write('\n');
+    }
     return fullText;
   }
 
