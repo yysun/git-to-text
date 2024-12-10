@@ -25,33 +25,131 @@ export function filterSourceFiles(diff, projectType) {
     : '';
 }
 
-export async function getCommitDiffs(git, projectType, onProgress) {
-  const log = await git.log();
-  // Sort commits by date ascending (oldest first)
-  const commits = log.all.sort((a, b) => new Date(a.date) - new Date(b.date));
-  const total = commits.length - 1;
+export async function getCommitDiffs(git, projectType, groupSize = 1, onProgress = null) {
+  const commits = await git.log();
   const diffs = [];
-  
-  for (let i = 0; i < total; i++) {
-    const currentCommit = commits[i];
-    const nextCommit = commits[i + 1];
-    
-    const diff = await git.diff([currentCommit.hash, nextCommit.hash]);
-    // Filter diff to only include source files based on project type
-    const sourceDiff = filterSourceFiles(diff, projectType);
-    
-    if (sourceDiff) {
-      diffs.push({
-        commitHash: currentCommit.hash,
-        message: currentCommit.message,
-        date: currentCommit.date,
-        diff: sourceDiff
-      });
+  const commitList = commits.all.reverse(); // Oldest to newest
+  const emptyTreeHash = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+  if (commitList.length === 0) {
+    return diffs;
+  }
+
+  let progressCount = 0;
+
+  if (groupSize === 1) {
+    // For n=1: Compare commit index 0 with empty tree, then 1 with 0, 2 with 1, etc.
+    // Start with commit index 0 vs empty tree
+    const firstCommit = commitList[0];
+    try {
+      const firstDiff = await git.diff([emptyTreeHash, firstCommit.hash]);
+      if (firstDiff) {
+        const filteredDiff = filterSourceFiles(firstDiff, projectType);
+        if (filteredDiff) {
+          diffs.push({
+            fromCommit: { hash: emptyTreeHash, message: 'Empty tree' },
+            toCommit: firstCommit,
+            diff: filteredDiff,
+            message: firstCommit.message
+          });
+        }
+      }
+      
+      if (onProgress) {
+        progressCount++;
+        onProgress(progressCount);
+      }
+    } catch (error) {
+      console.error(`Error getting diff for first commit ${firstCommit.hash}: ${error.message}`);
     }
 
-    // Call progress callback with current commit number
-    if (onProgress) {
-      onProgress(i + 1);
+    // Compare each subsequent commit with its previous
+    for (let i = 1; i < commitList.length; i++) {
+      const currentCommit = commitList[i];
+      const previousCommit = commitList[i - 1];
+      
+      try {
+        const diff = await git.diff([previousCommit.hash, currentCommit.hash]);
+        if (diff) {
+          const filteredDiff = filterSourceFiles(diff, projectType);
+          if (filteredDiff) {
+            diffs.push({
+              fromCommit: previousCommit,
+              toCommit: currentCommit,
+              diff: filteredDiff,
+              message: currentCommit.message
+            });
+          }
+        }
+        
+        if (onProgress) {
+          progressCount++;
+          onProgress(progressCount);
+        }
+      } catch (error) {
+        console.error(`Error getting diff between commits ${previousCommit.hash} and ${currentCommit.hash}: ${error.message}`);
+      }
+    }
+  } else {
+    // For n>1:
+    // For n=2: Start with index 2, compare with empty tree, then 4 with 2, 6 with 4, etc.
+    // For n=3: Start with index 3, compare with empty tree, then 6 with 3, 9 with 6, etc.
+    
+    // Get the first comparison (nth commit vs empty tree)
+    const startIndex = groupSize;
+    if (startIndex < commitList.length) {
+      const firstNthCommit = commitList[startIndex];
+      try {
+        const firstDiff = await git.diff([emptyTreeHash, firstNthCommit.hash]);
+        if (firstDiff) {
+          const filteredDiff = filterSourceFiles(firstDiff, projectType);
+          if (filteredDiff) {
+            diffs.push({
+              fromCommit: { hash: emptyTreeHash, message: 'Empty tree' },
+              toCommit: firstNthCommit,
+              diff: filteredDiff,
+              message: firstNthCommit.message
+            });
+          }
+        }
+        
+        if (onProgress) {
+          progressCount++;
+          onProgress(progressCount);
+        }
+      } catch (error) {
+        console.error(`Error getting diff for nth commit ${firstNthCommit.hash}: ${error.message}`);
+      }
+
+      // Process remaining commits based on group size
+      // For n=2: Compare index 4 with 2, 6 with 4, etc.
+      // For n=3: Compare index 6 with 3, 9 with 6, etc.
+      for (let i = startIndex + groupSize; i < commitList.length; i += groupSize) {
+        const currentCommit = commitList[i];
+        const previousNthCommit = commitList[i - groupSize];
+        
+        try {
+          const diff = await git.diff([previousNthCommit.hash, currentCommit.hash]);
+          if (diff) {
+            const filteredDiff = filterSourceFiles(diff, projectType);
+            if (filteredDiff) {
+              diffs.push({
+                fromCommit: previousNthCommit,
+                toCommit: currentCommit,
+                diff: filteredDiff,
+                message: currentCommit.message
+              });
+            }
+          }
+          
+          if (onProgress) {
+            progressCount++;
+            onProgress(progressCount);
+          }
+        } catch (error) {
+          console.error(`Error getting diff between commits ${previousNthCommit.hash} and ${currentCommit.hash}: ${error.message}`);
+        }
+      }
     }
   }
   

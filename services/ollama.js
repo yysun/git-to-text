@@ -142,9 +142,11 @@ class OllamaClient {
 
 ${processedDiff}
 
-Analyze this git diff and list the features implemented using rules:
-* Describe the features into a bullet list.
+Analyze the git diff changes using rules:
+* Describe the features implemented into a bullet list.
 * Use sublist for parameters details if any.
+* Do NOT include code snippets.
+* Retain project structure changes as separate features.
 * Do NOT review, fix, refactor or improve the code or implementation details. 
 * Only return a bullet list. 
 * Do NOT offer further help or provide any additional information or context.
@@ -166,11 +168,11 @@ Analyze this git diff and list the features implemented using rules:
         return 'No features to consolidate';
       }
       
-      const prompt = `You are a business analyst. You have a features list: 
+      const prompt = `You are a business analyst. You have a features change history: 
 
 ${validFeatures.join('\n')}
 
-Combine these features into a bullet list using rules:
+Consolidate these features into a bullet list using rules:
 * Maintain the order of features as they appear in the list.
 * Retaining all features and details as much as possible.
 * Later feature updates can merge into or replace with earlier ones if needed.

@@ -79,27 +79,27 @@ async function loadRepository(path) {
   const git = simpleGit(path);
   const validPath = await validateRepoPath(path);
   const spinner = ora('Loading repository...').start();
-  
+
   try {
     // Detect project type
     projectType = await detectRepoType(validPath);
     spinner.text = 'Detecting project type...';
     console.log(`${BOLD}\nProject Analysis${RESET}`);
     console.log(`${WHITE}Detected Type:${RESET}    ${GREEN}${projectType}${RESET}`);
-    
+
     // Get only the total number of commits
     const totalCommits = (await git.raw(['rev-list', '--count', 'HEAD'])).trim();
-    
+
     spinner.stop();
-    
+
     const stats = await getRepoStats(git, totalCommits);
-    
+
     // Reset features when loading a new repository
     features = '';
     allFeatures = [];
-    
+
     console.log(`${GREEN}Repository loaded successfully${RESET}`);
-    
+
     return {
       repoPath: validPath,
       totalCommits: parseInt(totalCommits),
@@ -119,7 +119,7 @@ async function getRepoStats(git, totalCommits) {
     commits: parseInt(totalCommits),
     status: await git.status()
   };
-  
+
   console.log(`${BOLD}\nRepository Statistics${RESET}`);
   console.log(`${WHITE}Branch:${RESET}           ${GREEN}${stats.branches.current}${RESET}`);
   console.log(`${WHITE}Commits:${RESET}          ${YELLOW}${stats.commits}${RESET}`);
@@ -127,7 +127,7 @@ async function getRepoStats(git, totalCommits) {
   console.log(`${WHITE}Modified Files:${RESET}   ${YELLOW}${stats.status.modified.length}${RESET}`);
   console.log(`${WHITE}Staged Files:${RESET}     ${YELLOW}${stats.status.staged.length}${RESET}`);
   console.log(`${WHITE}Project Type:${RESET}     ${GREEN}${projectType}${RESET}`);
-  
+
   return stats;
 }
 
@@ -144,75 +144,80 @@ async function printHelp() {
 
 async function processCommitGroups(git, groupSize, state) {
   const totalCommits = state.totalCommits;
-  const totalGroups = Math.ceil(totalCommits / groupSize);
-  
-  if (totalCommits === 0) {
-    console.log(`${YELLOW}No commits to process.${RESET}`);
+
+  if (totalCommits < groupSize) {
+    console.log(`${YELLOW}Not enough commits to process with group size ${groupSize}.${RESET}`);
     return [];
   }
 
-  // Step 1: Fetch commit history
-  console.log(`\n${BOLD}Fetching Commit History${RESET}`);
-  
-  // Adjust total for progress bar to match actual number of diffs we'll process
-  const progressTotal = totalCommits - 1;
-  const getProgress = createProgressBar(progressTotal);
-  process.stdout.write(`Progress: ${getProgress(0)}`);
-  
-  const diffs = await getCommitDiffs(git, projectType, (current) => {
+  console.log(`\n${BOLD}Processing Commits${RESET}`);
+  console.log(`${WHITE}Total Commits:${RESET}    ${YELLOW}${totalCommits}${RESET}`);
+  console.log(`${WHITE}Group Size:${RESET}       ${YELLOW}${groupSize}${RESET}`);
+
+  // Display the comparison pattern based on group size
+  let pattern;
+  if (groupSize === 1) {
+    pattern = "Each commit compared with its previous (1 with 0, 2 with 1, etc.)";
+  } else if (groupSize === 2) {
+    pattern = "First comparing commit 2 with empty tree, then 4 with 2, 6 with 4, etc.";
+  } else {
+    pattern = `First comparing commit ${groupSize} with empty tree, then ${groupSize * 2} with ${groupSize}, ${groupSize * 3} with ${groupSize * 2}, etc.`;
+  }
+  console.log();
+
+  try {
+    // Calculate total operations for progress bar
+    let totalOperations;
+    if (groupSize === 1) {
+      totalOperations = totalCommits;
+    } else {
+      // For n>1, calculate how many complete groups we'll process
+      const numGroups = Math.floor((totalCommits - 1) / groupSize);
+      totalOperations = numGroups + 1; // +1 for the first comparison with empty tree
+    }
+
+    // Get diffs using the updated getCommitDiffs function
+    const diffs = await getCommitDiffs(git, projectType, groupSize, (progress) => {
+      process.stdout.clearLine(0);
+      process.stdout.cursorTo(0);
+      const progressBar = createProgressBar(totalOperations);
+      process.stdout.write(`Progress: ${progressBar(Math.min(progress, totalOperations))}`);
+    });
+
+    // Ensure we show 100% at completion
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
-    process.stdout.write(`Progress: ${getProgress(Math.min(current, progressTotal))}`);
-  });
-  
-  // Ensure we show 100% at completion
-  process.stdout.clearLine(0);
-  process.stdout.cursorTo(0);
-  process.stdout.write(`Progress: ${getProgress(progressTotal)}\n`);
-  
-  console.log('\n'); // New line after progress bar
+    const progressBar = createProgressBar(totalOperations);
+    process.stdout.write(`Progress: ${progressBar(totalOperations)}\n`);
 
-  // Step 2: Process commit groups
-  console.log(`${BOLD}Processing Commit Groups${RESET}`);
-  console.log(`${WHITE}Total Groups:${RESET}      ${YELLOW}${totalGroups}${RESET}`);
-  console.log(`${WHITE}Commits per Group:${RESET} ${YELLOW}${groupSize}${RESET}`);
-  
-  try {
-    for (let i = 0; i < diffs.length; i += groupSize) {
-      const groupEnd = Math.min(i + groupSize, diffs.length);
-      const groupNumber = Math.floor(i/groupSize) + 1;
-      
-      console.log(`\n${BOLD}Group ${groupNumber}/${totalGroups}${RESET} (commits ${i + 1}-${groupEnd})`);
-      
-      // Combine diffs in the group
-      let combinedDiff = '';
-      let combinedMessage = '';
-      
-      for (let j = i; j < groupEnd; j++) {
-        const diff = diffs[j];
-        if (diff.diff) {
-          combinedDiff += diff.diff + '\n';
-          combinedMessage += diff.message + '\n';
-        }
+    console.log(`\n${GREEN}Successfully processed all commits${RESET}`);
+
+    // Process each diff
+    for (let i = 0; i < diffs.length; i++) {
+      const { fromCommit, toCommit, diff, message } = diffs[i];
+
+      console.log(`\n${BOLD}Processing Diff ${i + 1}/${diffs.length}${RESET}`);
+      if (fromCommit.hash === '4b825dc642cb6eb9a060e54bf8d69288fbee4904') {
+        console.log(`${WHITE}From:${RESET} empty tree ${WHITE}→${RESET} ${toCommit.hash}`);
+      } else {
+        console.log(`${WHITE}From:${RESET} ${fromCommit.hash} ${WHITE}→${RESET} ${toCommit.hash}`);
       }
-      
-      if (combinedDiff) {
-        const features = await analyzeGitDiff(combinedMessage + '\n' + combinedDiff);
+
+      if (diff) {
+        const features = await analyzeGitDiff(message + '\n' + diff);
         allFeatures.push(features);
       }
     }
 
-    console.log(`\n${GREEN}Successfully processed all ${totalGroups} groups${RESET}`);
-
-    // Step 3: Consolidate features
+    // Consolidate features
     console.log(`\n${BOLD}Consolidating Features${RESET}`);
     features = await consolidateFeaturesList(allFeatures);
-    
+
     console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
-    
-    return [];
+
+    return diffs;
   } catch (error) {
-    console.error(`\n${RED}Failed to process commit groups: ${error.message}${RESET}`);
+    console.error(`\n${RED}Failed to process commits: ${error.message}${RESET}`);
     throw error;
   }
 }
@@ -221,37 +226,37 @@ async function processTagDiffs(git, fromTag = null) {
   try {
     // Step 1: Fetch tags
     console.log(`\n${BOLD}Analyzing Tags${RESET}`);
-    
+
     // Get all tags and sort them
     const tags = await git.tags();
     const sortedTags = [];
-    
+
     // Show progress while getting tag details
     console.log(`${BOLD}Fetching Tag Information${RESET}`);
     const getTagProgress = createProgressBar(tags.all.length);
     process.stdout.write(`Progress: ${getTagProgress(0)}`);
-    
+
     // Get creation date for each tag
     for (let i = 0; i < tags.all.length; i++) {
       const tagName = tags.all[i];
       const show = await git.show([tagName]);
       const date = show.match(/Date:\s+(.+)/)?.[1];
       sortedTags.push({ name: tagName, date: new Date(date) });
-      
+
       // Update progress
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
       process.stdout.write(`Progress: ${getTagProgress(i + 1)}`);
     }
-    
+
     // Ensure we show 100% at completion for tag fetching
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     process.stdout.write(`Progress: ${getTagProgress(tags.all.length)}\n\n`);
-    
+
     // Sort tags by date
     sortedTags.sort((a, b) => a.date - b.date);
-    
+
     if (sortedTags.length === 0) {
       console.log(`${YELLOW}No tags found in repository.${RESET}`);
       return;
@@ -270,22 +275,22 @@ async function processTagDiffs(git, fromTag = null) {
 
     // Step 2: Process tag differences with progress bar
     console.log(`${BOLD}Processing Tag Differences${RESET}`);
-    
+
     const diffs = await getTagDiffs(git, projectType, fromTag);
-    
+
     if (diffs.length === 0) {
       console.log(`${YELLOW}No differences found between tags.${RESET}`);
       return;
     }
-    
+
     console.log(`${WHITE}Total Tags to Process:${RESET} ${YELLOW}${diffs.length}${RESET}`);
-    
+
     for (let i = 0; i < diffs.length; i++) {
       const { fromTag: from, toTag: to, diff } = diffs[i];
-      
+
       console.log(`\n${BOLD}Processing Tags ${i + 1}/${diffs.length}${RESET}`);
       console.log(`${WHITE}From:${RESET} ${from} ${WHITE}→${RESET} ${to}`);
-      
+
       if (diff) {
         const features = await analyzeGitDiff(diff);
         allFeatures.push(features);
@@ -306,18 +311,18 @@ async function processTagDiffs(git, fromTag = null) {
 
 async function handleCommand(cmd, state) {
   const [command, ...args] = cmd.toLowerCase().split(' ');
-  
+
   switch (command) {
     case '/help':
       console.log(HELP_MESSAGE);
       return state;
-      
+
     case '/repo':
       let newPath = args.join(' ').trim();
       if (!newPath) {
         newPath = await promptForRepoPath();
       }
-      
+
       if (newPath) {
         try {
           return await loadRepository(newPath);
@@ -342,7 +347,7 @@ async function handleCommand(cmd, state) {
         console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
       }
-      
+
       const groupSize = parseInt(args[0]);
       if (isNaN(groupSize) || groupSize <= 0) {
         console.log(`${YELLOW}Please provide a valid positive number for group size.${RESET}`);
@@ -391,7 +396,7 @@ async function commandLoop(state) {
     const cmd = await new Promise(resolve => {
       rl.question('> ', answer => resolve(answer.trim()));
     });
-    
+
     if (cmd) {
       state = await handleCommand(cmd, state);
     }
@@ -401,7 +406,7 @@ async function commandLoop(state) {
 async function main() {
   const spinner = ora();
   try {
-    let state = { 
+    let state = {
       repoPath: null,
       totalCommits: 0,
       stats: null,
