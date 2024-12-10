@@ -169,14 +169,14 @@ Here is a list of features implemented in each change:
         return 'No features to consolidate';
       }
       
-      const prompt = `You are a business analyst. You have feature changes: 
+      const prompt = `You are a business analyst. You have features: 
 ${validFeatures.join('\n')}
 
 Please consolidate these features following rules below:
-1. Maintain the original chronological order of features.
-2. Describe overall system structure and functionalities.
-3. Describe features and removing any redundant information.
-4. Focus on what are features and avoid what have been done.
+1. First, Describe overall system structure and functionalities.
+2. Then, Describe features and removing any redundant information.
+3. Maintain the ascending chronological order of features.
+4. List functionalities and avoid actions.
 5. ONLY return a clear and concise bullet list.
 6. Do not offer further help or suggestions.
 7. Must respond in ${this.config.language}.
