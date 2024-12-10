@@ -43,7 +43,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/features` - Show summarized features extracted from commits
 - `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
-- `/retry` - Re-run last consolidation (from /commit or /tag)
+- `/retry` - Re-run consolidation of existing features (does not re-analyze commits/tags)
 - `/speak [lang]` - Set language for responses (defaults to English)
 - `/export` - Export features to a timestamped log file with repo name
 - `/exit` - Exit the program
@@ -53,11 +53,11 @@ If no repository path is provided, you will be prompted to enter one.
 ```bash
 > node index.js /path/to/repo
 > /commit 5  # Analyze commits in groups of 5
-> /retry     # Re-run the commit analysis with same parameters
+> /retry     # Re-consolidate features with different AI output
 > /speak Spanish  # Switch output to Spanish
+> /retry     # Re-consolidate features in Spanish
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
-> /retry     # Re-run the tag analysis with same parameters
 > /features  # Display extracted features
 > /export    # Save features to a timestamped file
 ```
@@ -71,6 +71,9 @@ If no repository path is provided, you will be prompted to enter one.
 - Progress visualization
 - Repository statistics
 - Intelligent feature consolidation
+  - Re-consolidation without re-analysis
+  - Language-aware consolidation
+  - Maintains chronological order
 - Error handling and retry mechanisms
 - Tag-based analysis for version comparisons
 - Multi-language support for responses
@@ -86,11 +89,11 @@ The Ollama client can be configured in `services/ollama.js`:
 ```javascript
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
-  model: 'qwen2.5-coder',
+  model: 'llama3.2:3b',
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
-  maxTokens: 8192,
+  maxTokens: 4096,
   language: 'English'  // Default language for responses
 };
 ```

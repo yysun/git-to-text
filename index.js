@@ -31,7 +31,7 @@ let language = 'English';
 
 // Track last run for retry functionality
 let lastRun = {
-  type: null, // 'commit' or 'tag'
+  type: null, // 'commit', 'tag', or 'consolidate'
   params: null // groupSize for commit, fromTag for tag
 };
 
@@ -42,7 +42,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
-  ${WHITE}/retry${RESET}             - Re-run last consolidation (from /commit or /tag)
+  ${WHITE}/retry${RESET}             - Re-run consolidation of existing features
   ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
   ${WHITE}/export${RESET}            - Export features to a timestamped log file
   ${WHITE}/exit${RESET}              - Exit the program
@@ -194,6 +194,9 @@ async function processCommitGroups(git, groupSize, state) {
 
     console.log(`\n${GREEN}Successfully processed all commits, found ${YELLOW}${diffs.length}${GREEN} groups that have code diffs.${RESET}`);
 
+    // Clear previous features but keep track of run type
+    allFeatures = [];
+
     // Process each diff
     for (let i = 0; i < diffs.length; i++) {
       const { fromCommit, toCommit, diff, message } = diffs[i];
@@ -285,6 +288,9 @@ async function processTagDiffs(git, fromTag = null) {
     }
 
     console.log(`${WHITE}Total Tags to Process:${RESET} ${YELLOW}${diffs.length}${RESET}`);
+
+    // Clear previous features but keep track of run type
+    allFeatures = [];
 
     for (let i = 0; i < diffs.length; i++) {
       const { fromTag: from, toTag: to, diff } = diffs[i];
@@ -394,20 +400,18 @@ async function handleCommand(cmd, state) {
         console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
       }
-      if (!lastRun.type) {
-        console.log(`${YELLOW}No previous run to retry. Use /commit or /tag first.${RESET}`);
+      if (allFeatures.length === 0) {
+        console.log(`${YELLOW}No features to consolidate. Use /commit or /tag first.${RESET}`);
         return state;
       }
 
       try {
-        const git = simpleGit(state.repoPath);
-        if (lastRun.type === 'commit') {
-          await processCommitGroups(git, lastRun.params, state);
-        } else if (lastRun.type === 'tag') {
-          await processTagDiffs(git, lastRun.params);
-        }
+        // Only re-run the consolidation step
+        console.log(`\n${BOLD}Re-running Feature Consolidation${RESET}`);
+        features = await consolidateFeaturesList(allFeatures);
+        console.log(`\n${GREEN}Features consolidated successfully${RESET}`);
       } catch (error) {
-        console.error(`${RED}Error retrying last run: ${error.message}${RESET}`);
+        console.error(`${RED}Error consolidating features: ${error.message}${RESET}`);
       }
       return state;
 
