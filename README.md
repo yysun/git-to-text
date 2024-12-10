@@ -47,6 +47,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/speak [lang]` - Set language for responses (defaults to English)
 - `/export` - Export features to a timestamped log file with repo name
 - `/exit` - Exit the program
+- `/stream [on|off]` - Toggle response streaming (default: on)
 
 ### Example Session
 

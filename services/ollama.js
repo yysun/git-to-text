@@ -6,7 +6,8 @@ export const CONFIG = {
   retryAttempts: 3,
   retryDelay: 1000,
   maxTokens: 4096,
-  language: 'English'
+  language: 'English',
+  streaming: true
 };
 
 // ANSI escape codes
@@ -28,7 +29,7 @@ class OllamaClient {
           body: JSON.stringify({
             model: this.config.model,
             prompt: this._sanitizePrompt(prompt),
-            stream: true,
+            stream: this.config.streaming,
             temperature: this.config.temperature,
             max_tokens: maxTokens
           })
@@ -194,6 +195,11 @@ Here is the consolidated list of features:
   setLanguage(language) {
     this.config.language = language;
   }
+
+  toggleStreaming(enabled) {
+    this.config.streaming = enabled;
+    return enabled;
+  }
 }
 
 // Create singleton instance
@@ -203,3 +209,4 @@ const ollamaClient = new OllamaClient();
 export const analyzeGitDiff = (diff) => ollamaClient.analyzeGitDiff(diff);
 export const consolidateFeaturesList = (features) => ollamaClient.consolidateFeaturesList(features);
 export const setLanguage = (language) => ollamaClient.setLanguage(language);
+export const toggleStreaming = (enabled) => ollamaClient.toggleStreaming(enabled);

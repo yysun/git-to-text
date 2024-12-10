@@ -6,7 +6,7 @@ import { dirname, resolve } from 'path';
 import readline from 'readline';
 import ora from 'ora';
 import fs from 'fs/promises';
-import { analyzeGitDiff, consolidateFeaturesList, setLanguage } from './services/ollama.js';
+import { analyzeGitDiff, consolidateFeaturesList, setLanguage, toggleStreaming } from './services/ollama.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
@@ -44,6 +44,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
   ${WHITE}/retry${RESET}             - Re-run consolidation of existing features
   ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
+  ${WHITE}/stream${RESET} [on|off]   - Toggle response streaming (default: on)
   ${WHITE}/export${RESET}            - Export features to a timestamped log file
   ${WHITE}/exit${RESET}              - Exit the program
 `;
@@ -453,6 +454,12 @@ async function handleCommand(cmd, state) {
       } catch (error) {
         console.error(`${RED}Error exporting features: ${error.message}${RESET}`);
       }
+      return state;
+
+    case '/stream':
+      const enabled = args[0]?.toLowerCase() !== 'off';
+      toggleStreaming(enabled);
+      console.log(`${GREEN}Streaming ${enabled ? 'enabled' : 'disabled'}${RESET}`);
       return state;
 
     case '/exit':
