@@ -5,7 +5,8 @@ export const CONFIG = {
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
-  maxTokens: 8192,  // Added maxTokens config
+  maxTokens: 4096,
+  language: 'English'
 };
 
 // ANSI escape codes
@@ -18,7 +19,7 @@ class OllamaClient {
   }
 
   // Core API method
-  async query(prompt) {
+  async query(prompt, maxTokens = this.config.maxTokens) {
     return this._retryWithDelay(async () => {
       try {
         const response = await fetch(this.config.endpoint, {
@@ -29,7 +30,7 @@ class OllamaClient {
             prompt: this._sanitizePrompt(prompt),
             stream: true,
             temperature: this.config.temperature,
-            max_tokens: this.config.maxTokens  // Added maxTokens to request
+            max_tokens: maxTokens
           })
         });
 
@@ -138,20 +139,20 @@ class OllamaClient {
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `You are a business analyst. You have a git diff:
-
+      const prompt = `You are a business analyst. You have a git diff, not a code sinppet:
 ${processedDiff}
 
-Analyze the git diff changes using rules:
-* Describe the features implemented into a bullet list.
-* Use sublist for parameters details if any.
-* Do NOT include code snippets.
-* Retain project structure changes as separate features.
-* Do NOT review, fix, refactor or improve the code or implementation details. 
-* Only return a bullet list. 
-* Do NOT offer further help or provide any additional information or context.
-      `;
+Please describe features implemented in each change following rules below:
+1. Describe features as if how you would implement it again in a list.
+2. Describe implementation and parameters details in a sublist if any.
+3. Do NOT review, fix, refactor or improve the code or implementation details. 
+4. Do NOT include code snippets.
+5. ONLY return a clear and concise bullet list.
+6. Do NOT offer further help or provide any additional information or context.
+7. Must respond in ${this.config.language}.
 
+Here is a list of features implemented in each change:
+`;
 
       return (await this.query(prompt)).trim();
     } catch (error) {
@@ -168,22 +169,28 @@ Analyze the git diff changes using rules:
         return 'No features to consolidate';
       }
       
-      const prompt = `You are a business analyst. You have a features change history: 
-
+      const prompt = `You are a business analyst. You have feature changes: 
 ${validFeatures.join('\n')}
 
-Consolidate these features into a bullet list using rules:
-* Maintain the order of features as they appear in the list.
-* Retaining all features and details as much as possible.
-* Later feature updates can merge into or replace with earlier ones if needed.
-* Return ONLY a bullet list. No explanations.
-* Do not offer further help or suggestions.
-      `;
-      return (await this.query(prompt)).trim();
+Please consolidate these features following rules below:
+1. Maintain the original chronological order of features.
+2. Retaining details as much as possible, but removing any redundant information.
+3. ONLY return a clear and concise bullet list.
+4. Do not offer further help or suggestions.
+5. Must respond in ${this.config.language}.
+
+Here is the consolidated list of features:
+`;
+      // Use 9K tokens for consolidation
+      return (await this.query(prompt, 9216)).trim();
     } catch (error) {
       console.error('Failed to consolidate features:', error);
       throw error;
     }
+  }
+
+  setLanguage(language) {
+    this.config.language = language;
   }
 }
 
@@ -193,3 +200,4 @@ const ollamaClient = new OllamaClient();
 // Export public methods
 export const analyzeGitDiff = (diff) => ollamaClient.analyzeGitDiff(diff);
 export const consolidateFeaturesList = (features) => ollamaClient.consolidateFeaturesList(features);
+export const setLanguage = (language) => ollamaClient.setLanguage(language);

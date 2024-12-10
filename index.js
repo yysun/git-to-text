@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import readline from 'readline';
 import ora from 'ora';
-import { analyzeGitDiff, consolidateFeaturesList } from './services/ollama.js';
+import { analyzeGitDiff, consolidateFeaturesList, setLanguage } from './services/ollama.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
@@ -26,6 +26,7 @@ const GRAY = '\x1b[90m';
 let features = '';
 let allFeatures = [];
 let projectType = 'unknown';
+let language = 'English';
 
 const HELP_MESSAGE = `
 ${BOLD}Available Commands:${RESET}
@@ -34,6 +35,7 @@ ${BOLD}Available Commands:${RESET}
   ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
+  ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -329,6 +331,13 @@ async function handleCommand(cmd, state) {
       } else {
         console.log(`${YELLOW}No features analyzed yet. Use /run to analyze commits.${RESET}`);
       }
+      return state;
+
+    case '/speak':
+      const newLang = args.join(' ').trim() || 'English';
+      language = newLang;
+      setLanguage(newLang);
+      console.log(`${GREEN}Language set to: ${WHITE}${newLang}${RESET}`);
       return state;
 
     case '/commit':

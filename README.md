@@ -43,6 +43,7 @@ If no repository path is provided, you will be prompted to enter one.
 - `/features` - Show summarized features extracted from commits
 - `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
+- `/speak [lang]` - Set language for responses (defaults to English)
 - `/exit` - Exit the program
 
 ### Example Session
@@ -50,6 +51,7 @@ If no repository path is provided, you will be prompted to enter one.
 ```bash
 > node index.js /path/to/repo
 > /commit 5  # Analyze commits in groups of 5
+> /speak Spanish  # Switch output to Spanish
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
 > /features  # Display extracted features
@@ -66,6 +68,7 @@ If no repository path is provided, you will be prompted to enter one.
 - Intelligent feature consolidation
 - Error handling and retry mechanisms
 - Tag-based analysis for version comparisons
+- Multi-language support for responses
 
 ## Configuration
 
@@ -78,7 +81,8 @@ export const CONFIG = {
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
-  maxTokens: 8192
+  maxTokens: 8192,
+  language: 'English'  // Default language for responses
 };
 ```
 
@@ -111,6 +115,7 @@ The tool provides:
 - Consolidated feature lists
 - Real-time processing feedback
 - Tag-based feature analysis
+- Multi-language feature descriptions
 
 ## License
 
