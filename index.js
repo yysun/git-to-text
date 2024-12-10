@@ -154,17 +154,6 @@ async function processCommitGroups(git, groupSize, state) {
   console.log(`${WHITE}Total Commits:${RESET}    ${YELLOW}${totalCommits}${RESET}`);
   console.log(`${WHITE}Group Size:${RESET}       ${YELLOW}${groupSize}${RESET}`);
 
-  // Display the comparison pattern based on group size
-  let pattern;
-  if (groupSize === 1) {
-    pattern = "Each commit compared with its previous (1 with 0, 2 with 1, etc.)";
-  } else if (groupSize === 2) {
-    pattern = "First comparing commit 2 with empty tree, then 4 with 2, 6 with 4, etc.";
-  } else {
-    pattern = `First comparing commit ${groupSize} with empty tree, then ${groupSize * 2} with ${groupSize}, ${groupSize * 3} with ${groupSize * 2}, etc.`;
-  }
-  console.log();
-
   try {
     // Calculate total operations for progress bar
     let totalOperations;
@@ -181,16 +170,16 @@ async function processCommitGroups(git, groupSize, state) {
       process.stdout.clearLine(0);
       process.stdout.cursorTo(0);
       const progressBar = createProgressBar(totalOperations);
-      process.stdout.write(`Progress: ${progressBar(Math.min(progress, totalOperations))}`);
+      process.stdout.write(`Analyzing Commits: ${progressBar(Math.min(progress, totalOperations))}`);
     });
 
     // Ensure we show 100% at completion
     process.stdout.clearLine(0);
     process.stdout.cursorTo(0);
     const progressBar = createProgressBar(totalOperations);
-    process.stdout.write(`Progress: ${progressBar(totalOperations)}\n`);
+    process.stdout.write(`Analyzing Commits: ${progressBar(totalOperations)}\n`);
 
-    console.log(`\n${GREEN}Successfully processed all commits${RESET}`);
+    console.log(`\n${GREEN}Successfully processed all commits, found ${YELLOW}${diffs.length}${GREEN} groups that have code diffs.${RESET}`);
 
     // Process each diff
     for (let i = 0; i < diffs.length; i++) {
