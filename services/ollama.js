@@ -176,7 +176,7 @@ Please consolidate these features following rules below:
 1. First, Describe overall system structure and functionalities.
 2. Then, Describe features and removing any redundant information.
 3. Maintain the ascending chronological order of features.
-4. List functionalities and avoid actions.
+4. List functionalities and remove implementation details.
 5. ONLY return a clear and concise bullet list.
 6. Do not offer further help or suggestions.
 7. Must respond in ${this.config.language}.
