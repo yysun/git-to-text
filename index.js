@@ -6,7 +6,8 @@ import { dirname, resolve } from 'path';
 import readline from 'readline';
 import ora from 'ora';
 import fs from 'fs/promises';
-import { analyzeGitDiff, consolidateFeaturesList, setLanguage, toggleStreaming, CONFIG } from './services/ollama.js';
+import { setLanguage, toggleStreaming, CONFIG } from './services/ollama.js';
+import { analyzeGitDiff, consolidateFeaturesList } from './services/git-analyzer.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
