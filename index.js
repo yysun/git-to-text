@@ -186,7 +186,28 @@ async function processDiffs(git, type, params, state) {
       console.log(`\n${GREEN}Successfully processed ${diffs.length} commit groups${RESET}`);
     } else {
       const fromTag = params;
-      diffs = await getTagDiffs(git, projectType, fromTag);
+      try {
+        diffs = await getTagDiffs(git, projectType, fromTag);
+      } catch (error) {
+        if (error.message.includes('not found')) {
+          // Get all available tags
+          const tags = await git.tags();
+          if (tags.all.length === 0) {
+            console.log(`${YELLOW}No tags found in the repository.${RESET}`);
+            return;
+          }
+          
+          // Display available tags
+          console.log(`${YELLOW}Tag '${fromTag}' not found. Available tags:${RESET}`);
+          console.log(`\n${BOLD}Available Tags:${RESET}`);
+          tags.all.forEach(tag => {
+            console.log(`  ${WHITE}${tag}${RESET}`);
+          });
+          console.log(`\n${YELLOW}Please use /tag with one of the above tags.${RESET}`);
+          return;
+        }
+        throw error;
+      }
     }
 
     if (diffs.length === 0) {
@@ -229,8 +250,8 @@ async function processDiffs(git, type, params, state) {
         const spinner = ora(`Processing ${type} ${i + 1}/${diffs.length}: ${diffMessage}`).start();
         const diffFeatures = await analyzeGitDiff(diffContent);
         spinner.succeed();
-        allFeatures.push(diffFeatures);
         console.log(`\n${DIM}${diffFeatures}${RESET}\n`);
+        allFeatures.push(diffFeatures);
       }
     }
 
