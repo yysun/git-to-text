@@ -111,12 +111,22 @@ export async function summarizeFeatures(features) {
 
     const messages = [{
       role: "system",
-      content: `You are a summarization assistant. I will provide a large text in chunks. After each chunk, update the global summary, ensuring it remains coherent and captures all key points introduced so far.`
+      content: `You are a summarization assistant. I will provide a large text in chunks. After each chunk, update the global summary with the new information according to rules:
+1.Describe overall system structure and functionalities.
+2.Describe features into a clear, concise list.
+3.Describe functionalities of each feature.
+4.Do not offer further help or suggestions.
+5.Must respond in ${CONFIG.language}.
+6.Return features as a bullet list in markdown format, no bold or italic:
+
+- [Feature description]
+  - [Functionality description]`
     }];
 
     let globalSummary = "";
 
     for (let i = 0; i < chunks.length; i++) {
+
       const promptContent = i === 0
         ? `Here is the first part of the document:\n\n${chunks[i].join('\n')}\n\nPlease summarize this portion.`
         : `Here is another part of the document:\n\n${chunks[i].join('\n')}\n\nIncorporate this new information into the existing summary:\n\n${globalSummary}`;
