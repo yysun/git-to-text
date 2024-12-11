@@ -154,6 +154,9 @@ async function consolidateAndDisplayFeatures(featuresList) {
     const endTime = process.hrtime.bigint();
     const duration = Number(endTime - startTime) / 1e9;
     console.log(`${GREEN}Consolidation took ${duration.toFixed(2)} seconds${RESET}`);
+
+    console.log(`\n${BOLD}Consolidated Features: ${RESET}\n\n`);
+    console.log(`${GRAY}${features}${RESET}\n`);
     return features;
   } catch (error) {
     console.error(`${RED}Error consolidating features: ${error.message}${RESET}`);

@@ -73,17 +73,15 @@ export async function analyzeGitDiff(diff) {
       const prompt = `You are a business analyst. You have a git diff:
 ${groupDiff}
 
-Please analyze features implemented from the git diff according to rules below:
-1.Describe features as if how you would implement. 
-2.Describe implementation and analyze parameters details.
-3.Do NOT review, fix, refactor or improve the code or implementation details. 
-4.Do NOT include code snippets, suggestions or improvements.
-5.Do NOT offer further help or provide any additional information or context.
-6.Must respond in ${CONFIG.language}.
-7.ONLY return a clear and concise bullet list in markdown format, no bold or italic:
-
-- [Feature description]
-  - [Changes made and parameters details]
+Please describe changes as a list of features following these rules:
+1. Describe features introduced by the changes, not file changes.
+2. Analyze parameter specifics without responding with code.
+3. Do NOT review, fix, refactor, or provide code examples.
+4. Do NOT offer help, suggestions, or additional context.
+5. Respond in ${CONFIG.language}.
+6. ONLY return a bullet list in markdown format, using this structure:
+  - [Feature description]
+    - [Changes made and parameters details]
 
 `;
       const result = await query(prompt, 2048);
@@ -111,16 +109,16 @@ export async function summarizeFeatures(features) {
 
     const messages = [{
       role: "system",
-      content: `You are a summarization assistant. I will provide a large text in chunks. After each chunk, update the global summary with the new information according to rules:
-1.Describe overall system structure and functionalities.
-2.Describe features into a clear, concise list.
-3.Describe functionalities of each feature.
-4.Do not offer further help or suggestions.
-5.Must respond in ${CONFIG.language}.
-6.Return features as a bullet list in markdown format, no bold or italic:
-
-- [Feature description]
-  - [Functionality description]`
+      content: `You are a summarization assistant. Use will provide a large text in chunks. After each chunk, repeat the following process:
+1. Describe the overall system structure and its capabilities.
+2. Consolidate features in a bullet list, updating features with information from each new chunk.
+3. Describe functionalities of each feature as sub-items.
+4. Use plain language and avoid code or technical details.
+5. Do not offer additional help or suggestions.
+6. Respond in ${CONFIG.language}.
+7. Use markdown format with bullet points only (no bold or italics):
+  - [Feature description]
+    - [Functionality description]`
     }];
 
     let globalSummary = "";
