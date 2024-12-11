@@ -235,9 +235,7 @@ async function processDiffs(git, type, params, state) {
       }
 
       // Prepare diff content for analysis
-      const diffContent = type === 'commit'
-        ? diff.message + '\n' + diff.diff
-        : diff.diff;
+      const diffContent = diff.diff;
 
       // Process in streaming mode
       if (CONFIG.streaming) {

@@ -2,7 +2,7 @@
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
   model: 'llama3.2:3b',
-  temperature: 0.3,
+  temperature: 0.1,
   retryAttempts: 3,
   retryDelay: 1000,
   maxTokens: 4096,
@@ -83,7 +83,7 @@ class OllamaClient {
               // Log problematic chunk for debugging
               console.error('Error parsing JSON:', e.message);
               console.error('Problematic chunk:', line);
-              
+
               // Try to recover by clearing buffer if it gets too large
               if (buffer.length > 10000) {
                 console.error('Buffer overflow, clearing buffer');
@@ -111,7 +111,6 @@ class OllamaClient {
     } finally {
       reader.releaseLock();
     }
-    
     if (this.config.streaming) {
       process.stdout.write('\n');
     }
@@ -121,7 +120,6 @@ class OllamaClient {
   // Utility methods
   _sanitizePrompt(text) {
     if (!text) return '';
-    
     const sanitized = text
       .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, '')
       .replace(/\\(?!["\\/bfnrt])/g, '\\\\')
@@ -144,26 +142,112 @@ class OllamaClient {
     }
   }
 
+  // Split diff into chunks by file
+  _splitDiffIntoFileChunks(diff) {
+    const chunks = [];
+    const lines = diff.split('\n');
+    let currentChunk = '';
+    let currentFile = '';
+
+    for (const line of lines) {
+      if (line.startsWith('diff --git')) {
+        if (currentChunk) {
+          chunks.push({ file: currentFile, content: currentChunk.trim() });
+        }
+        currentFile = line.split(' b/')[1];
+        currentChunk = line + '\n';
+      } else {
+        currentChunk += line + '\n';
+      }
+    }
+
+    if (currentChunk) {
+      chunks.push({ file: currentFile, content: currentChunk.trim() });
+    }
+
+    return chunks;
+  }
+
+  // Group chunks that are less than 2K
+  _groupChunks(chunks) {
+    const groups = [];
+    let currentGroup = [];
+    let currentSize = 0;
+    const MAX_SIZE = 2000;
+
+    for (const chunk of chunks) {
+      const chunkSize = chunk.content.length;
+
+      if (chunkSize > MAX_SIZE) {
+        // If single chunk is larger than max size, it gets its own group
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+          currentGroup = [];
+          currentSize = 0;
+        }
+        groups.push([chunk]);
+      } else if (currentSize + chunkSize > MAX_SIZE) {
+        // Start new group if adding this chunk would exceed max size
+        groups.push(currentGroup);
+        currentGroup = [chunk];
+        currentSize = chunkSize;
+      } else {
+        // Add to current group
+        currentGroup.push(chunk);
+        currentSize += chunkSize;
+      }
+    }
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  }
+
   // Git analysis methods
   async analyzeGitDiff(diff) {
     try {
       const processedDiff = diff.trim();
-      const prompt = `You are a business analyst. You have a git diff, not a code sinppet:
-${processedDiff}
 
-Please describe features implemented in each change following rules below:
-1. Describe features as if how you would implement it again in a list.
-2. Describe implementation and parameters details in a sublist if any.
-3. Do NOT review, fix, refactor or improve the code or implementation details. 
-4. Do NOT include code snippets.
-5. ONLY return a clear and concise bullet list.
-6. Do NOT offer further help or provide any additional information or context.
-7. Must respond in ${this.config.language}.
+      // Split diff into chunks by file
+      const chunks = this._splitDiffIntoFileChunks(processedDiff);
 
-Here is a list of features implemented in each change:
+      // Group chunks that are less than 128K
+      const groups = this._groupChunks(chunks);
+
+      // console.log(`Split diff into ${chunks.length} chunks and ${groups.length} groups`);
+
+      // Analyze each group and concatenate results
+      let finalResult = '';
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        const groupDiff = group.map(chunk => chunk.content).join('\n');
+
+        // console.log(`Processing group #${i + 1} of ${groups.length} with ${group.length} chunks and ${groupDiff.length} characters`);
+
+        const prompt = `You are a business analyst. You have a git diff:
+${groupDiff}
+
+Please analyze features implemented from the git diff according to rules below:
+1.Describe features as if how you would implement. 
+2.Describe implementation and analyze parameters details.
+3.Do NOT review, fix, refactor or improve the code or implementation details. 
+4.Do NOT include code snippets, suggestions or improvements.
+5.Do NOT offer further help or provide any additional information or context.
+6.Must respond in ${this.config.language}.
+7.ONLY return a clear and concise bullet list in markdown format, no bold or italic:
+
+- [Feature description]
+  - [Changes made and parameters details]
+
 `;
+        const result = await this.query(prompt, 2048);
+        if (finalResult) finalResult += '\n\n';
+        finalResult += result.trim();
+      }
 
-      return (await this.query(prompt)).trim();
+      return finalResult;
     } catch (error) {
       console.error('Failed to analyze git diff:', error);
       throw error;
@@ -173,24 +257,25 @@ Here is a list of features implemented in each change:
   async consolidateFeaturesList(features) {
     try {
       const validFeatures = features.filter(f => f && f.trim());
-      
+
       if (validFeatures.length === 0) {
         return 'No features to consolidate';
       }
-      
+
       const prompt = `You are a business analyst. You have features: 
 ${validFeatures.join('\n')}
 
 Please consolidate these features following rules below:
-1. First, Describe overall system structure and functionalities.
-2. Then, Describe features and removing any redundant information.
-3. Maintain the ascending chronological order of features.
-4. List functionalities and remove implementation details.
-5. ONLY return a clear and concise bullet list.
-6. Do not offer further help or suggestions.
-7. Must respond in ${this.config.language}.
+1.Describe overall system structure and functionalities.
+2.Describe features as noun into a clear, concise list.
+3.Update and combine the descriptions with latest information.
+4.Describe functionalities of each feature.
+5.Do not offer further help or suggestions.
+6.Must respond in ${this.config.language}.
+7.Return features as a bullet list in markdown format, no bold or italic:
 
-Here is the consolidated list of features:
+- [Feature description]
+  - [Functionality description]
 `;
       // Use 9K tokens for consolidation
       return (await this.query(prompt, 9216)).trim();
