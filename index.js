@@ -7,7 +7,7 @@ import readline from 'readline';
 import ora from 'ora';
 import fs from 'fs/promises';
 import { setLanguage, toggleStreaming, CONFIG } from './services/ollama.js';
-import { analyzeGitDiff, consolidateFeaturesList } from './services/git-analyzer.js';
+import { analyzeGitDiff, summarizeFeatures } from './services/git-analyzer.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
@@ -28,7 +28,6 @@ const GRAY = '\x1b[90m';
 let features = '';
 let allFeatures = [];
 let projectType = 'unknown';
-let language = 'English';
 
 // Track last run for retry functionality
 let lastRun = {
@@ -142,11 +141,11 @@ async function consolidateAndDisplayFeatures(featuresList) {
   try {
     if (CONFIG.streaming) {
       console.log(`\n${BOLD}Consolidating features...${RESET}`);
-      features = await consolidateFeaturesList(featuresList);
+      features = await summarizeFeatures(featuresList);
       console.log();
     } else {
       const consolidateSpinner = ora('Consolidating features...').start();
-      features = await consolidateFeaturesList(featuresList);
+      features = await summarizeFeatures(featuresList);
       console.log();
       consolidateSpinner.succeed('Features consolidated successfully');
       console.log(`\n${DIM}${features}${RESET}\n`);
@@ -295,7 +294,6 @@ async function handleCommand(cmd, state) {
 
     case '/speak':
       const newLang = args.join(' ').trim() || 'English';
-      language = newLang;
       setLanguage(newLang);
       console.log(`${GREEN}Language set to: ${WHITE}${newLang}${RESET}`);
       return state;

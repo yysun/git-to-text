@@ -39,7 +39,7 @@ class OllamaClient {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        return await this._processStream(response);
+        return await this._processStream(response, false);
       } catch (error) {
         console.error('Error querying Ollama:', error);
         throw error;
@@ -50,7 +50,7 @@ class OllamaClient {
   async chat(messages, maxTokens = this.config.maxTokens) {
     return this._retryWithDelay(async () => {
       try {
-        const response = await fetch(this.config.chatEndpoint + 'api/chat', {
+        const response = await fetch(this.config.endpoint + 'api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -66,7 +66,7 @@ class OllamaClient {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        return await this._processStream(response);
+        return await this._processStream(response, true);
       } catch (error) {
         console.error('Error in chat with Ollama:', error);
         throw error;
@@ -75,72 +75,86 @@ class OllamaClient {
   }
 
   // Stream handling
-  async _processStream(response) {
+  async _processStream(response, isChat = false) {
     const reader = response.body.getReader();
     let fullText = '';
-    let buffer = '';
+
     if (this.config.streaming) {
       process.stdout.write('\n');
     }
 
     try {
+      let decoder = new TextDecoder();
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = new TextDecoder().decode(value);
-        buffer += chunk;
+        buffer += decoder.decode(value, { stream: true });
 
-        // Process complete JSON objects from buffer
-        let newlineIndex;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        while (true) {
+          const newlineIndex = buffer.indexOf('\n');
+          if (newlineIndex === -1) break;
+
           const line = buffer.slice(0, newlineIndex);
           buffer = buffer.slice(newlineIndex + 1);
 
-          if (line.trim()) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.response) {
-                if (this.config.streaming) {
-                  process.stdout.write(DIM + parsed.response + RESET);
-                }
-                fullText += parsed.response;
-              }
-            } catch (e) {
-              // Log problematic chunk for debugging
-              console.error('Error parsing JSON:', e.message);
-              console.error('Problematic chunk:', line);
+          if (!line.trim()) continue;
 
-              // Try to recover by clearing buffer if it gets too large
-              if (buffer.length > 10000) {
-                console.error('Buffer overflow, clearing buffer');
-                buffer = '';
+          try {
+            const parsed = JSON.parse(line);
+            
+            if (isChat) {
+              const content = parsed.message?.content || '';
+              if (content && !parsed.done) {
+                if (this.config.streaming) {
+                  process.stdout.write(DIM + content + RESET);
+                }
+                fullText = content;
+              }
+            } else {
+              const content = parsed.response || '';
+              if (content) {
+                if (this.config.streaming) {
+                  process.stdout.write(DIM + content + RESET);
+                }
+                fullText += content;
               }
             }
+          } catch (e) {
+            // Silently ignore parsing errors
           }
         }
       }
 
-      // Process any remaining data in buffer
+      // Handle any remaining buffer content
       if (buffer.trim()) {
         try {
           const parsed = JSON.parse(buffer);
-          if (parsed.response) {
+          const content = isChat ? (parsed.message?.content || '') : (parsed.response || '');
+          if (content) {
             if (this.config.streaming) {
-              process.stdout.write(DIM + parsed.response + RESET);
+              process.stdout.write(DIM + content + RESET);
             }
-            fullText += parsed.response;
+            if (isChat) {
+              fullText = content;
+            } else {
+              fullText += content;
+            }
           }
         } catch (e) {
-          console.error('Error parsing final buffer:', e.message);
+          // Silently ignore parsing errors
         }
       }
     } finally {
       reader.releaseLock();
     }
+
     if (this.config.streaming) {
       process.stdout.write('\n');
     }
+
     return fullText;
   }
 

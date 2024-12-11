@@ -1,8 +1,43 @@
-import { query, CONFIG } from './ollama.js';
+import { query, CONFIG, chat } from './ollama.js';
 
-// Split diff into chunks by file
-function splitDiffIntoFileChunks(diff) {
-  const chunks = [];
+// Generic chunk grouping function that supports streaming
+function* groupBySize(items, maxSize, getSize = item => item.length) {
+  let currentGroup = [];
+  let currentSize = 0;
+
+  for (const item of items) {
+    const itemSize = getSize(item);
+
+    // Handle items larger than maxSize individually
+    if (itemSize > maxSize) {
+      if (currentGroup.length > 0) {
+        yield currentGroup;
+        currentGroup = [];
+        currentSize = 0;
+      }
+      yield [item];
+      continue;
+    }
+
+    // Start new group if current would exceed maxSize
+    if (currentSize + itemSize > maxSize) {
+      yield currentGroup;
+      currentGroup = [item];
+      currentSize = itemSize;
+    } else {
+      currentGroup.push(item);
+      currentSize += itemSize;
+    }
+  }
+
+  // Yield remaining group
+  if (currentGroup.length > 0) {
+    yield currentGroup;
+  }
+}
+
+// Split diff into chunks by file with streaming support
+function* splitDiffIntoFileChunks(diff) {
   const lines = diff.split('\n');
   let currentChunk = '';
   let currentFile = '';
@@ -10,7 +45,7 @@ function splitDiffIntoFileChunks(diff) {
   for (const line of lines) {
     if (line.startsWith('diff --git')) {
       if (currentChunk) {
-        chunks.push({ file: currentFile, content: currentChunk.trim() });
+        yield { file: currentFile, content: currentChunk.trim() };
       }
       currentFile = line.split(' b/')[1];
       currentChunk = line + '\n';
@@ -20,51 +55,15 @@ function splitDiffIntoFileChunks(diff) {
   }
 
   if (currentChunk) {
-    chunks.push({ file: currentFile, content: currentChunk.trim() });
+    yield { file: currentFile, content: currentChunk.trim() };
   }
-
-  return chunks;
 }
 
-// Group chunks that are less than 2K
-function groupChunks(chunks) {
-  const groups = [];
-  let currentGroup = [];
-  let currentSize = 0;
-  const MAX_SIZE = 2000;
-
-  for (const chunk of chunks) {
-    const chunkSize = chunk.content.length;
-
-    if (chunkSize > MAX_SIZE) {
-      if (currentGroup.length > 0) {
-        groups.push(currentGroup);
-        currentGroup = [];
-        currentSize = 0;
-      }
-      groups.push([chunk]);
-    } else if (currentSize + chunkSize > MAX_SIZE) {
-      groups.push(currentGroup);
-      currentGroup = [chunk];
-      currentSize = chunkSize;
-    } else {
-      currentGroup.push(chunk);
-      currentSize += chunkSize;
-    }
-  }
-
-  if (currentGroup.length > 0) {
-    groups.push(currentGroup);
-  }
-
-  return groups;
-}
-
-export async function analyzeGitDiff(diff, language = 'English') {
+export async function analyzeGitDiff(diff) {
   try {
     const processedDiff = diff.trim();
-    const chunks = splitDiffIntoFileChunks(processedDiff);
-    const groups = groupChunks(chunks);
+    const chunks = [...splitDiffIntoFileChunks(processedDiff)];
+    const groups = [...groupBySize(chunks, 2000, chunk => chunk.content.length)];
 
     let finalResult = '';
     for (let i = 0; i < groups.length; i++) {
@@ -80,7 +79,7 @@ Please analyze features implemented from the git diff according to rules below:
 3.Do NOT review, fix, refactor or improve the code or implementation details. 
 4.Do NOT include code snippets, suggestions or improvements.
 5.Do NOT offer further help or provide any additional information or context.
-6.Must respond in ${language}.
+6.Must respond in ${CONFIG.language}.
 7.ONLY return a clear and concise bullet list in markdown format, no bold or italic:
 
 - [Feature description]
@@ -99,33 +98,46 @@ Please analyze features implemented from the git diff according to rules below:
   }
 }
 
-export async function consolidateFeaturesList(features) {
+export async function summarizeFeatures(features) {
   try {
-    const validFeatures = features.filter(f => f && f.trim());
+    const allFeatures = features.join('\n').split('\n');
+    const validFeatures = allFeatures.filter(f => f && f.trim());
 
     if (validFeatures.length === 0) {
-      return 'No features to consolidate';
+      return 'No features to summarize';
     }
 
-    const prompt = `You are a business analyst. You have features: 
-${validFeatures.join('\n')}
+    const chunks = [...groupBySize(validFeatures, 4000)];
 
-Please consolidate these features following rules below:
-1.Describe overall system structure and functionalities.
-2.Describe features into a clear, concise list.
-3.Update and combine the features with latest information.
-4.Describe functionalities of each feature.
-5.Do not offer further help or suggestions.
-6.Must respond in ${CONFIG.language}.
-7.Return features as a bullet list in markdown format, no bold or italic:
+    const messages = [{
+      role: "system",
+      content: `You are a summarization assistant. I will provide a large text in chunks. After each chunk, update the global summary, ensuring it remains coherent and captures all key points introduced so far.`
+    }];
 
-- [Feature]
-  - [Functionality]
-`;
-    // Use 9K tokens for consolidation
-    return (await query(prompt, 9216)).trim();
+    let globalSummary = "";
+
+    for (let i = 0; i < chunks.length; i++) {
+      const promptContent = i === 0
+        ? `Here is the first part of the document:\n\n${chunks[i].join('\n')}\n\nPlease summarize this portion.`
+        : `Here is another part of the document:\n\n${chunks[i].join('\n')}\n\nIncorporate this new information into the existing summary:\n\n${globalSummary}`;
+
+      messages.push({ role: "user", content: promptContent });
+
+      const response = await chat(messages);
+      globalSummary = response;
+
+      // Clean up messages to save context space - keep only system message
+      messages.splice(1);
+      messages.push({ role: "user", content: promptContent });
+      messages.push({ role: "assistant", content: globalSummary });
+
+      console.log('Processed chunk', i + 1);
+      console.log(globalSummary);
+    }
+
+    return globalSummary.trim();
   } catch (error) {
-    console.error('Failed to consolidate features:', error);
+    console.error('Failed to summarize features:', error);
     throw error;
   }
 }
