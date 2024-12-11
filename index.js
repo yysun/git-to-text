@@ -304,7 +304,7 @@ async function handleCommand(cmd, state) {
         return state;
       }
 
-      const groupSize = parseInt(args[0]);
+      const groupSize = args.length > 0 ? parseInt(args[0]) : Number.MAX_SAFE_INTEGER;
       if (isNaN(groupSize) || groupSize <= 0) {
         console.log(`${YELLOW}Please provide a valid positive number for group size.${RESET}`);
         return state;
