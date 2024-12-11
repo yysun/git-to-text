@@ -1,6 +1,6 @@
 // Configuration
 export const CONFIG = {
-  endpoint: 'http://localhost:11434/api/generate',
+  endpoint: 'http://localhost:11434/',
   model: 'llama3.2:3b',
   temperature: 0.3,
   retryAttempts: 3,
@@ -23,7 +23,7 @@ class OllamaClient {
   async query(prompt, maxTokens = this.config.maxTokens) {
     return this._retryWithDelay(async () => {
       try {
-        const response = await fetch(this.config.endpoint, {
+        const response = await fetch(this.config.endpoint + 'api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -42,6 +42,33 @@ class OllamaClient {
         return await this._processStream(response);
       } catch (error) {
         console.error('Error querying Ollama:', error);
+        throw error;
+      }
+    });
+  }
+
+  async chat(messages, maxTokens = this.config.maxTokens) {
+    return this._retryWithDelay(async () => {
+      try {
+        const response = await fetch(this.config.chatEndpoint + 'api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: this.config.model,
+            messages,
+            stream: this.config.streaming,
+            temperature: this.config.temperature,
+            max_tokens: maxTokens
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await this._processStream(response);
+      } catch (error) {
+        console.error('Error in chat with Ollama:', error);
         throw error;
       }
     });
@@ -159,3 +186,4 @@ const ollamaClient = new OllamaClient();
 export const query = (prompt, maxTokens) => ollamaClient.query(prompt, maxTokens);
 export const setLanguage = (language) => ollamaClient.setLanguage(language);
 export const toggleStreaming = (enabled) => ollamaClient.toggleStreaming(enabled);
+export const chat = (messages, maxTokens) => ollamaClient.chat(messages, maxTokens);
