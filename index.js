@@ -163,19 +163,17 @@ async function processDiffs(git, type, params, state) {
     let diffs;
     if (type === 'commit') {
       const groupSize = params;
-      if (state.totalCommits < groupSize) {
-        console.log(`${YELLOW}Not enough commits to process with group size ${groupSize}.${RESET}`);
-        return;
-      }
 
       console.log(`\n${BOLD}Processing Commits${RESET}`);
       console.log(`${WHITE}Total Commits:${RESET}    ${YELLOW}${state.totalCommits}${RESET}`);
       console.log(`${WHITE}Group Size:${RESET}       ${YELLOW}${groupSize}${RESET}`);
 
       // Calculate total operations for progress bar
-      const totalOperations = groupSize === 1
-        ? state.totalCommits
-        : Math.floor((state.totalCommits - 1) / groupSize) + 1;
+      const totalOperations = state.totalCommits < groupSize 
+        ? 1  // If not enough commits, we'll just do one diff from empty tree to HEAD
+        : (groupSize === 1
+          ? state.totalCommits
+          : Math.floor((state.totalCommits - 1) / groupSize) + 1);
 
       diffs = await getCommitDiffs(git, projectType, groupSize, (progress) => {
         process.stdout.clearLine(0);

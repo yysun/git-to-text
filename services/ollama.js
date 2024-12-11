@@ -2,7 +2,7 @@
 export const CONFIG = {
   endpoint: 'http://localhost:11434/api/generate',
   model: 'llama3.2:3b',
-  temperature: 0.1,
+  temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
   maxTokens: 4096,
@@ -267,15 +267,15 @@ ${validFeatures.join('\n')}
 
 Please consolidate these features following rules below:
 1.Describe overall system structure and functionalities.
-2.Describe features as noun into a clear, concise list.
-3.Update and combine the descriptions with latest information.
+2.Describe features into a clear, concise list.
+3.Update and combine the features with latest information.
 4.Describe functionalities of each feature.
 5.Do not offer further help or suggestions.
 6.Must respond in ${this.config.language}.
 7.Return features as a bullet list in markdown format, no bold or italic:
 
-- [Feature description]
-  - [Functionality description]
+- [Feature]
+  - [Functionality]
 `;
       // Use 9K tokens for consolidation
       return (await this.query(prompt, 9216)).trim();
