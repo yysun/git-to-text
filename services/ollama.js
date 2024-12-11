@@ -104,24 +104,9 @@ class OllamaClient {
 
           try {
             const parsed = JSON.parse(line);
-            
-            if (isChat) {
-              const content = parsed.message?.content || '';
-              if (content && !parsed.done) {
-                if (this.config.streaming) {
-                  process.stdout.write(DIM + content + RESET);
-                }
-                fullText = content;
-              }
-            } else {
-              const content = parsed.response || '';
-              if (content) {
-                if (this.config.streaming) {
-                  process.stdout.write(DIM + content + RESET);
-                }
-                fullText += content;
-              }
-            }
+            fullText = isChat ? 
+              this._processChatStream(parsed, fullText) : 
+              this._processQueryStream(parsed, fullText);
           } catch (e) {
             // Silently ignore parsing errors
           }
@@ -132,17 +117,9 @@ class OllamaClient {
       if (buffer.trim()) {
         try {
           const parsed = JSON.parse(buffer);
-          const content = isChat ? (parsed.message?.content || '') : (parsed.response || '');
-          if (content) {
-            if (this.config.streaming) {
-              process.stdout.write(DIM + content + RESET);
-            }
-            if (isChat) {
-              fullText = content;
-            } else {
-              fullText += content;
-            }
-          }
+          fullText = isChat ? 
+            this._processChatStream(parsed, fullText) : 
+            this._processQueryStream(parsed, fullText);
         } catch (e) {
           // Silently ignore parsing errors
         }
@@ -156,6 +133,28 @@ class OllamaClient {
     }
 
     return fullText;
+  }
+
+  _processChatStream(parsed, currentText) {
+    const content = parsed.message?.content || '';
+    if (content && !parsed.done) {
+      if (this.config.streaming) {
+        process.stdout.write(DIM + content + RESET);
+      }
+      return currentText + content; // Now accumulating chat responses
+    }
+    return currentText;
+  }
+
+  _processQueryStream(parsed, currentText) {
+    const content = parsed.response || '';
+    if (content) {
+      if (this.config.streaming) {
+        process.stdout.write(DIM + content + RESET);
+      }
+      return currentText + content; // Query concatenates responses
+    }
+    return currentText;
   }
 
   // Utility methods

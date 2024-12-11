@@ -130,9 +130,6 @@ export async function summarizeFeatures(features) {
       messages.splice(1);
       messages.push({ role: "user", content: promptContent });
       messages.push({ role: "assistant", content: globalSummary });
-
-      console.log('Processed chunk', i + 1);
-      console.log(globalSummary);
     }
 
     return globalSummary.trim();
