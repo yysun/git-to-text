@@ -139,6 +139,7 @@ async function analyzeRepository(path) {
 
 async function consolidateAndDisplayFeatures(featuresList) {
   try {
+    const startTime = process.hrtime.bigint();
     if (CONFIG.streaming) {
       console.log(`\n${BOLD}Consolidating features...${RESET}`);
       features = await summarizeFeatures(featuresList);
@@ -150,6 +151,9 @@ async function consolidateAndDisplayFeatures(featuresList) {
       consolidateSpinner.succeed('Features consolidated successfully');
       console.log(`\n${DIM}${features}${RESET}\n`);
     }
+    const endTime = process.hrtime.bigint();
+    const duration = Number(endTime - startTime) / 1e9;
+    console.log(`${GREEN}Consolidation took ${duration.toFixed(2)} seconds${RESET}`);
     return features;
   } catch (error) {
     console.error(`${RED}Error consolidating features: ${error.message}${RESET}`);
@@ -159,6 +163,8 @@ async function consolidateAndDisplayFeatures(featuresList) {
 
 async function processDiffs(git, type, params, state) {
   try {
+    const startTime = process.hrtime.bigint();
+    
     // Get diffs based on type (commit or tag)
     let diffs;
     if (type === 'commit') {
@@ -251,8 +257,16 @@ async function processDiffs(git, type, params, state) {
       }
     }
 
+    const diffEndTime = process.hrtime.bigint();
+    const diffDuration = Number(diffEndTime - startTime) / 1e9;
+    
     // Consolidate features
     await consolidateAndDisplayFeatures(allFeatures);
+    
+    const totalEndTime = process.hrtime.bigint();
+    const totalDuration = Number(totalEndTime - startTime) / 1e9;
+    console.log(`${GREEN}Diff processing took ${diffDuration.toFixed(2)} seconds${RESET}`);
+    console.log(`${GREEN}Total processing time: ${totalDuration.toFixed(2)} seconds${RESET}`);
 
   } catch (error) {
     console.error(`${RED}Failed to process ${type}s: ${error.message}${RESET}`);
