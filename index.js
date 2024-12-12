@@ -248,15 +248,15 @@ async function processDiffs(git, type, params, state) {
       if (CONFIG.streaming) {
         console.log(`\n${BOLD}Processing ${type} ${i + 1}/${diffs.length}: ${diffMessage}${RESET}`);
         const diffFeatures = await analyzeGitDiff(diffContent);
-        allFeatures.push(diffFeatures);
+        allFeatures.push(...diffFeatures);
       }
       // Process in non-streaming mode
       else {
         const spinner = ora(`Processing ${type} ${i + 1}/${diffs.length}: ${diffMessage}`).start();
         const diffFeatures = await analyzeGitDiff(diffContent);
         spinner.succeed();
-        console.log(`\n${DIM}${diffFeatures}${RESET}\n`);
-        allFeatures.push(diffFeatures);
+        console.log(`\n${DIM}${diffFeatures.join('\n\n')}${RESET}\n`);
+        allFeatures.push(...diffFeatures);
       }
     }
 

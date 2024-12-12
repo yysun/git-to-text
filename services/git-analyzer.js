@@ -65,7 +65,7 @@ export async function analyzeGitDiff(diff) {
     const chunks = [...splitDiffIntoFileChunks(processedDiff)];
     const groups = [...groupBySize(chunks, 2000, chunk => chunk.content.length)];
 
-    let finalResult = '';
+    let features = [];
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i];
       const groupDiff = group.map(chunk => chunk.content).join('\n');
@@ -75,21 +75,21 @@ ${groupDiff}
 
 Please describe changes as a list of features following these rules:
 1. Describe features introduced by the changes, not file changes.
-2. Analyze parameter specifics without responding with code.
+2. Analyze implementation and parameter details without responding with code.
 3. Do NOT review, fix, refactor, or provide code examples.
 4. Do NOT offer help, suggestions, or additional context.
 5. Respond in ${CONFIG.language}.
-6. ONLY return a bullet list in markdown format, using this structure:
+6. ONLY return a bullet list in markdown format, using this structure, e.g.:
+
   - [Feature description]
     - [Changes made and parameters details]
 
 `;
       const result = await query(prompt, 2048);
-      if (finalResult) finalResult += '\n\n';
-      finalResult += result.trim();
+      features.push(result.trim());
     }
 
-    return finalResult;
+    return features;
   } catch (error) {
     console.error('Failed to analyze git diff:', error);
     throw error;
@@ -98,8 +98,7 @@ Please describe changes as a list of features following these rules:
 
 export async function summarizeFeatures(features) {
   try {
-    const allFeatures = features.join('\n').split('\n');
-    const validFeatures = allFeatures.filter(f => f && f.trim());
+    const validFeatures = features.filter(f => f && f.trim());
 
     if (validFeatures.length === 0) {
       return 'No features to summarize';
@@ -111,12 +110,13 @@ export async function summarizeFeatures(features) {
       role: "system",
       content: `You are a summarization assistant. Use will provide a large text in chunks. After each chunk, repeat the following process:
 1. Describe the overall system structure and its capabilities.
-2. Consolidate features in a bullet list, updating features with information from each new chunk.
-3. Describe functionalities of each feature as sub-items.
-4. Use plain language and avoid code or technical details.
-5. Do not offer additional help or suggestions.
-6. Respond in ${CONFIG.language}.
-7. Use markdown format with bullet points only (no bold or italics):
+2. Describe features into a list by page, module, service, functionality, and etc..
+4. Describe capabilities of each feature as a sub list.
+3. Keep updating features with information from each new chunk.
+5. Use plain language and avoid code or technical details.
+6. Do not offer additional help or suggestions.
+7. Respond in ${CONFIG.language}.
+8. Use markdown format with bullet points only (no bold or italics), e.g.:
   - [Feature description]
     - [Functionality description]`
     }];
