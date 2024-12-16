@@ -40,26 +40,23 @@ If no repository path is provided, you will be prompted to enter one.
 
 - `/help` - Show help message with available commands
 - `/repo [path]` - Switch to a different repository
-- `/features` - Show summarized features extracted from commits
 - `/commit [n]` - Create and analyze diffs for every n commits
 - `/tag [from]` - Analyze changes between git tags, optionally starting from a specific tag
-- `/retry` - Re-run consolidation of existing features (does not re-analyze commits/tags)
 - `/speak [lang]` - Set language for responses (defaults to English)
 - `/export` - Export features to a timestamped log file with repo name
-- `/exit` - Exit the program
 - `/stream [on|off]` - Toggle response streaming (default: on)
+- `/doc [file]` - Summarize features to a file (optional)
+- `/exit` - Exit the program
 
 ### Example Session
 
 ```bash
 > node index.js /path/to/repo
 > /commit 5  # Analyze commits in groups of 5
-> /retry     # Re-consolidate features with different AI output
 > /speak Spanish  # Switch output to Spanish
-> /retry     # Re-consolidate features in Spanish
 > /tag   # Analyze all tags
 > /tag v1.0.0  # Analyze tags starting from v1.0.0
-> /features  # Display extracted features
+> /doc features.md  # Save features to a file
 > /export    # Save features to a timestamped file
 ```
 
@@ -72,7 +69,6 @@ If no repository path is provided, you will be prompted to enter one.
 - Progress visualization
 - Repository statistics
 - Intelligent feature consolidation
-  - Re-consolidation without re-analysis
   - Language-aware consolidation
   - Maintains chronological order
 - Error handling and retry mechanisms

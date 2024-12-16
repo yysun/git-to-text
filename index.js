@@ -39,13 +39,12 @@ const HELP_MESSAGE = `
 ${BOLD}Available Commands:${RESET}
   ${WHITE}/help${RESET}              - Show this help message
   ${WHITE}/repo${RESET} [path]       - Switch repositories
-  ${WHITE}/features${RESET}          - Show summarized features
   ${WHITE}/commit${RESET} [n]        - Create and analyze diffs for every n commits
   ${WHITE}/tag${RESET} [from]        - Analyze changes between git tags, optionally starting from a specific tag
-  ${WHITE}/retry${RESET}             - Re-run consolidation of existing features
   ${WHITE}/speak${RESET} [lang]      - Set language for responses (default: English)
   ${WHITE}/stream${RESET} [on|off]   - Toggle response streaming (default: on)
   ${WHITE}/export${RESET}            - Export features to a timestamped log file
+  ${WHITE}/doc${RESET} [file]        - Summarize features to a file (optional)
   ${WHITE}/exit${RESET}              - Exit the program
 `;
 
@@ -167,7 +166,7 @@ async function consolidateAndDisplayFeatures(featuresList) {
 async function processDiffs(git, type, params, state) {
   try {
     const startTime = process.hrtime.bigint();
-    
+
     // Get diffs based on type (commit or tag)
     let diffs;
     if (type === 'commit') {
@@ -178,7 +177,7 @@ async function processDiffs(git, type, params, state) {
       console.log(`${WHITE}Group Size:${RESET}       ${YELLOW}${groupSize}${RESET}`);
 
       // Calculate total operations for progress bar
-      const totalOperations = state.totalCommits < groupSize 
+      const totalOperations = state.totalCommits < groupSize
         ? 1  // If not enough commits, we'll just do one diff from empty tree to HEAD
         : (groupSize === 1
           ? state.totalCommits
@@ -203,7 +202,7 @@ async function processDiffs(git, type, params, state) {
             console.log(`${YELLOW}No tags found in the repository.${RESET}`);
             return;
           }
-          
+
           // Display available tags
           console.log(`${YELLOW}Tag '${fromTag}' not found. Available tags:${RESET}`);
           console.log(`\n${BOLD}Available Tags:${RESET}`);
@@ -262,14 +261,7 @@ async function processDiffs(git, type, params, state) {
 
     const diffEndTime = process.hrtime.bigint();
     const diffDuration = Number(diffEndTime - startTime) / 1e9;
-    
-    // Consolidate features
-    await consolidateAndDisplayFeatures(allFeatures);
-    
-    const totalEndTime = process.hrtime.bigint();
-    const totalDuration = Number(totalEndTime - startTime) / 1e9;
-    console.log(`${GREEN}Diff processing took ${diffDuration.toFixed(2)} seconds${RESET}`);
-    console.log(`${GREEN}Total processing time: ${totalDuration.toFixed(2)} seconds${RESET}`);
+    console.log(`\n${GREEN}Diff processing took ${diffDuration.toFixed(2)} seconds${RESET}`);
 
   } catch (error) {
     console.error(`${RED}Failed to process ${type}s: ${error.message}${RESET}`);
@@ -297,15 +289,6 @@ async function handleCommand(cmd, state) {
           console.error(`${RED}Error: ${error.message}${RESET}`);
           return state;
         }
-      }
-      return state;
-
-    case '/features':
-      if (features.length > 0) {
-        console.log(`${BOLD}\nFeatures: ${RESET}`);
-        console.log(`${DIM}${features}${RESET}`);
-      } else {
-        console.log(`${YELLOW}No features analyzed yet. Use /run to analyze commits.${RESET}`);
       }
       return state;
 
@@ -352,17 +335,40 @@ async function handleCommand(cmd, state) {
       }
       return state;
 
-    case '/retry':
+    case '/doc':
       if (!state.repoPath) {
         console.log(`${YELLOW}No repository selected. Use /repo to select a repository.${RESET}`);
         return state;
       }
       if (allFeatures.length === 0) {
-        console.log(`${YELLOW}No features to consolidate. Use /commit or /tag first.${RESET}`);
+        console.log(`${YELLOW}No features to document. Use /commit or /tag first.${RESET}`);
         return state;
       }
 
-      await consolidateAndDisplayFeatures(allFeatures);
+      const filePath = args.join(' ').trim();
+      let initialContent = '';
+
+      if (filePath) {
+        try {
+          try {
+            initialContent = await fs.readFile(resolve(state.repoPath, filePath), 'utf8');
+          } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+            // File doesn't exist, use empty string as initial content
+          }
+
+          features = await summarizeFeatures([initialContent, ...allFeatures].filter(Boolean));
+
+          await fs.writeFile(resolve(state.repoPath, filePath), features);
+          console.log(`\n${GREEN}Features documented to: ${filePath}${RESET}`);
+        } catch (error) {
+          console.error(`\n${RED}Error documenting features: ${error.message}${RESET}`);
+        }
+      } else {
+        features = await summarizeFeatures(allFeatures);
+        console.log(`${BOLD}\nFeatures: ${RESET}`);
+        console.log(`${DIM}${features}${RESET}`);
+      }
       return state;
 
     case '/export':
