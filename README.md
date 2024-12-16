@@ -62,22 +62,52 @@ If no repository path is provided, you will be prompted to enter one.
 
 ## Features
 
-- Automatic project type detection
-- Git repository analysis
-- Commit history processing
-- Feature extraction using AI
-- Progress visualization
-- Repository statistics
-- Intelligent feature consolidation
-  - Language-aware consolidation
-  - Maintains chronological order
-- Error handling and retry mechanisms
-- Tag-based analysis for version comparisons
-- Multi-language support for responses
-- Feature export functionality
-  - Saves both individual and consolidated features
-  - Includes repository metadata
-  - Timestamped files with repo name
+- Modular Architecture
+  - Service-based design for better maintainability
+  - Clear separation of concerns
+  - Extensible command handling
+  - Reusable components
+
+- Repository Analysis
+  - Automatic project type detection
+  - Comprehensive repository statistics
+  - Git operations abstraction
+  - Efficient diff processing
+
+- Feature Processing
+  - AI-powered feature extraction
+  - Intelligent consolidation
+  - Multi-language support
+  - Documentation generation
+
+- Progress Tracking
+  - Real-time progress bars
+  - ETA calculations
+  - Operation timing
+  - Visual feedback
+
+- Error Handling
+  - Consistent error management
+  - Automatic retries
+  - Graceful failure recovery
+  - User-friendly messages
+
+## Project Structure
+
+```
+.
+├── index.js                    # Main CLI application
+├── services/
+│   ├── cli-service.js         # Command handling and user interaction
+│   ├── repo-service.js        # Repository analysis and state management
+│   ├── feature-service.js     # Feature processing and consolidation
+│   ├── progress-service.js    # Progress tracking and display
+│   ├── git-analyzer.js        # LLM-based diff analysis
+│   ├── git-service.js         # Git operations wrapper
+│   ├── project-analyzer.js    # Project type detection
+│   └── ollama.js             # Ollama API client
+└── config/                    # Configuration files
+```
 
 ## Configuration
 
@@ -85,47 +115,64 @@ The Ollama client can be configured in `services/ollama.js`:
 
 ```javascript
 export const CONFIG = {
-  endpoint: 'http://localhost:11434/api/generate',
+  endpoint: 'http://localhost:11434/',
   model: 'llama3.2:3b',
   temperature: 0.3,
   retryAttempts: 3,
   retryDelay: 1000,
   maxTokens: 4096,
-  language: 'English'  // Default language for responses
+  language: 'English',  // Default language for responses
+  streaming: true      // Enable/disable streaming output
 };
 ```
 
-## Project Structure
+## Services
 
-```
-.
-├── index.js                 # Main CLI application
-├── services/
-│   ├── ollama.js           # Ollama API client
-│   ├── git-service.js      # Git operations
-│   └── project-analyzer.js # Project type detection
-└── config/                 # Configuration files
-```
+### CLI Service
+- Command parsing and validation
+- User input handling
+- Output formatting
+- Interactive prompts
 
-## Error Handling
+### Repository Service
+- Repository state management
+- Git operations handling
+- Project analysis
+- Statistics tracking
 
-The tool includes robust error handling:
-- Automatic retries for Ollama API calls
-- Git repository validation
-- Input sanitization
-- Graceful shutdown handling
+### Feature Service
+- Feature extraction
+- Consolidation logic
+- Documentation generation
+- Export functionality
+
+### Progress Service
+- Progress bar generation
+- ETA calculations
+- Operation timing
+- Visual feedback
 
 ## Output
 
 The tool provides:
 - Color-coded terminal output
-- Progress bars for long-running operations
+- Dynamic progress tracking
 - Repository statistics
 - Consolidated feature lists
 - Real-time processing feedback
 - Tag-based feature analysis
 - Multi-language feature descriptions
 - Feature export files with repository context
+
+## Error Handling
+
+The tool includes robust error handling:
+- Service-level error management
+- Automatic retries for API calls
+- Input validation
+- State consistency checks
+- Graceful shutdown handling
+- User-friendly error messages
 
 ## License
 
