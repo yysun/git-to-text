@@ -1,3 +1,21 @@
+/**
+ * Git operations handler for retrieving and filtering diffs
+ * 
+ * Implementation:
+ * - Filters diffs using regex pattern matching (a/file b/file)
+ * - Handles n-commit grouping with empty tree hash for initial state
+ * - Processes tags chronologically with date extraction and sorting
+ * - Implements progress tracking for long-running operations
+ * - Handles edge cases: empty repos, missing tags, partial groups
+ * 
+ * Data structures:
+ * - Diff: {fromCommit, toCommit, diff: string, message: string}
+ * - Tag: {name: string, date: Date}
+ * - Commit: {hash: string, message: string}
+ * 
+ * Dependencies: project-analyzer.js for file type detection
+ */
+
 import { isSourceFile } from './project-analyzer.js';
 
 const EMPTY_TREE_HASH = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';

@@ -1,3 +1,21 @@
+/**
+ * Project type detection and source file validation
+ * 
+ * Implementation:
+ * - Uses file presence checks and extension matching
+ * - Hierarchical detection: manifest files -> framework files -> extensions
+ * - Caches patterns by project type for performance
+ * - Handles unknown project types with fallback patterns
+ * 
+ * Project types and indicators:
+ * - web: package.json + framework files (React, Vue, Angular)
+ * - node: package.json without framework indicators
+ * - go: .go files or go.mod
+ * - dart: .dart files or pubspec.yaml
+ * - python: .py, requirements.txt, setup.py
+ * - java: .java, pom.xml, build.gradle
+ */
+
 export function detectProjectType(files) {
   // Check for package.json for Node/Web projects
   if (files.includes('package.json')) {

@@ -1,5 +1,35 @@
 #!/usr/bin/env node
 
+/**
+ * Git Repository Feature Analyzer CLI
+ * 
+ * A command-line tool that analyzes git repositories to extract and summarize feature implementations
+ * across commits or tags. Uses Ollama for AI-powered analysis of git diffs.
+ * 
+ * Key Features:
+ * - Interactive CLI with commands for repository analysis, diff processing, and feature extraction
+ * - Supports analyzing changes by commit groups or between tags
+ * - Real-time progress tracking with customizable streaming output
+ * - Feature consolidation and documentation generation
+ * - Multi-language support for feature descriptions
+ * 
+ * Core Data Models:
+ * - State: { repoPath, totalCommits, stats, lastProcessedIndex }
+ * - Features: Array of extracted feature descriptions
+ * - Diffs: { fromCommit/Tag, toCommit/Tag, diff } for git changes
+ * 
+ * Dependencies:
+ * - simple-git: Git operations and diff generation
+ * - ora: Terminal spinner for progress indication
+ * - readline: CLI input handling
+ * 
+ * Related Modules:
+ * - services/ollama.js: AI model configuration and interaction
+ * - services/git-analyzer.js: Diff analysis and feature extraction
+ * - services/git-service.js: Git operations wrapper
+ * - services/project-analyzer.js: Project type detection
+ */
+
 import simpleGit from 'simple-git';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -7,7 +37,7 @@ import readline from 'readline';
 import ora from 'ora';
 import fs from 'fs/promises';
 import { setLanguage, toggleStreaming, CONFIG } from './services/ollama.js';
-import { analyzeGitDiff, summarizeFeatures } from './services/git-analyzer.js';
+import { analyzeGitDiff, summarizeFeatures, updateDoc } from './services/git-analyzer.js';
 import { detectProjectType } from './services/project-analyzer.js';
 import { getTagDiffs, getCommitDiffs } from './services/git-service.js';
 
@@ -346,21 +376,24 @@ async function handleCommand(cmd, state) {
       }
 
       const filePath = args.join(' ').trim();
-      let initialContent = '';
+      let content = '';
 
       if (filePath) {
         try {
           try {
-            initialContent = await fs.readFile(resolve(state.repoPath, filePath), 'utf8');
+            content = await fs.readFile(resolve(state.repoPath, filePath), 'utf8');
           } catch (error) {
             if (error.code !== 'ENOENT') throw error;
-            // File doesn't exist, use empty string as initial content
+            // File doesn't exist, will create new
           }
 
-          features = await summarizeFeatures([initialContent, ...allFeatures].filter(Boolean));
+          // If file exists, update it. Otherwise create new.
+          features = content 
+            ? await updateDoc(content, allFeatures)
+            : await summarizeFeatures(allFeatures);
 
           await fs.writeFile(resolve(state.repoPath, filePath), features);
-          console.log(`\n${GREEN}Features documented to: ${filePath}${RESET}`);
+          console.log(`\n${GREEN}Features ${content ? 'updated' : 'documented'} to: ${filePath}${RESET}`);
         } catch (error) {
           console.error(`\n${RED}Error documenting features: ${error.message}${RESET}`);
         }

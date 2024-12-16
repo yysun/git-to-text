@@ -1,3 +1,25 @@
+/**
+ * Ollama API client with streaming support and error handling
+ * 
+ * Implementation:
+ * - Uses fetch API with streaming response processing
+ * - Implements retry logic with exponential backoff
+ * - Handles partial JSON chunks in stream with buffer
+ * - Supports both chat and completion endpoints
+ * - Uses ANSI codes for console output formatting
+ * 
+ * Data flow:
+ * 1. Request -> Streaming response -> Buffer -> JSON chunks
+ * 2. JSON chunks -> Console output + Text accumulation
+ * 3. Final text -> Response cleanup -> Return
+ * 
+ * Key params:
+ * - model: llama3.2:3b
+ * - max_tokens: 4096
+ * - num_ctx: 131072 (context window)
+ * - temperature: 0.3
+ */
+
 // Configuration
 export const CONFIG = {
   endpoint: 'http://localhost:11434/',
@@ -31,7 +53,8 @@ class OllamaClient {
             prompt: this._sanitizePrompt(prompt),
             stream: this.config.streaming,
             temperature: this.config.temperature,
-            max_tokens: maxTokens
+            max_tokens: maxTokens,
+            num_ctx: 131072
           })
         });
 
